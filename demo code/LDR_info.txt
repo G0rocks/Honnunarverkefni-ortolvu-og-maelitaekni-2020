@@ -1,0 +1,19 @@
+Specification:
+ 
+1. Photosensitive resistance module's most sensitive to ambient light, commonly used to detect environment around the
+brightness of the light, or MCU trigger relay module, etc.;
+2. Module in the environment light intensity than set threshold, output high level DO end, when the environment light
+intensity more than set threshold, the DO output low level;
+3. The DO output can be directly connected to the microcontroller, through single-chip microcomputer to detect
+the high and low level, thus to detect the environment light intensity change;
+4. The DO output can be directly driven by our relay module, which can form a light-operated switch.
+
+Feature:
+
+1. Using a photosensitive resistance sensor sensitive type;
+2. Working Voltage: 3.5V-5V;
+3. Output form: Digital Switch show (0 and 1);
+4. Fixed Bolt Hole, easy installation;
+5. Small PCB size: 3.2CM*1.7CM;
+6. The comparator output, signal clean, good waveform, driving ability is strong, for more than 15 ma;
+7. With adjustable potentiometer to adjust light brightness;
