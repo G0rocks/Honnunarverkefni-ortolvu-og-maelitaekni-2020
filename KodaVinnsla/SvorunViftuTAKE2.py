@@ -14,6 +14,7 @@ TACH_GPIO_PIN = 21      # BCM pin for reading the tachometer
 count_time = 2          # seconds for counting sensor changes
 
 RELAY_FAN_GPIO_PIN = 26 # BCM pin used to turn RELAY for FAN ON/OFF
+RELAY_HEATER_FAN_GPIO_PIN = 16 # BCM pin used to turn RELAY for HEATER ON/OFF
 
 ############ skilgreinum ##################
 # Stilla viftuhraða
@@ -42,6 +43,10 @@ def tach_count(sec,GPIO_PIN):
 ####
 print("Hversu mörg duty cycle viltu prófa?")
 a = int(input("Fjöldi duty cylce:"))
+b = bool(input("Kveikt á hitara? yes,no?"))
+
+if(b == "yes")
+    GPIO.output(RELAY_HEATER_FAN_GPIO_PIN,GPIO.LOW) # Turn the HEATER ON
 
 ########
 try:
