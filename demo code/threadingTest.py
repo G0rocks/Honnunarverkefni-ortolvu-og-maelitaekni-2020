@@ -6,14 +6,14 @@ from time import sleep
 def sum(a: int, b: int):
   return (a+b)
 
-def doThing1():
+def doThing1():   # Stýring?
   """
   Does the first thing
   """
   sleep(3)
   print("Thread 1. The sum of 2 and 5 is {int}", sum(2,5))
 
-def doThing2():
+def doThing2():   # Óskgildi?
   """
   Does the second thing
   """
