@@ -27,7 +27,7 @@ import matplotlib.pyplot as plt     # Documentation: https://matplotlib.org/api/
 # import termplotlib                  # Documentation: https://pypi.org/project/termplotlib/ # Athuga hvort hægt sé að setja termplotlib upp á raspberry pi áður en við notum
 import threading                    # Documentation: https://docs.python.org/3/library/threading.html # Getum vonandi notað tvo threada til að láta annan þeirra stjórna óskgildinu og hinn vera stýringin okkar
 from threading import thread
-
+import numpy as np                  # Documentation: 
 ############ Config ##################
 # GPIO setup
 GPIO.setwarnings(False)       # Disable warnings about pin configuration being something other than the default
@@ -133,7 +133,9 @@ def heaterOn():
 
 def measureTemp():
   """
-  Mælir hitastig beint í breytun 'hitastig'. Ef það kemur upp villa við mælingu þá prentast hún út, við bíðum í sensor_cache_clear_time og reynum aftur, hámark 5 sinnum, svo gefumst við upp.
+  Mælir hitastig beint í breytun 'hitastig'.
+  Ef það kemur upp villa við mælingu þá prentast hún út, við bíðum í sensor_cache_clear_time og reynum aftur.
+  Hámark 5 sinnum, svo gefumst við upp.
   """
   keepGoing = True
   loopCounter = 0
@@ -152,7 +154,9 @@ def measureTemp():
 
 def measureHum():
   """
-  Mælir rakastig beint í breytuna 'rakastig'. Ef það kemur upp villa við mælingu þá prentast hún út, við bíðum í sensor_cache_clear_time og reynum aftur, hámark 5 sinnum, svo gefumst við upp.
+  Mælir rakastig beint í breytuna 'rakastig'.
+  Ef það kemur upp villa við mælingu þá prentast hún út, við bíðum í sensor_cache_clear_time og reynum aftur.
+  Hámark 5 sinnum, svo gefumst við upp.
   """
   keepGoing = True
   loopCounter = 0
@@ -169,6 +173,13 @@ def measureHum():
         raise error
     loopCounter += 1
 
+def elapsedTime(UpphafsTimi):
+  """
+  Mælir hversu langur mikil tími hefur liðið síðan einhver X upphafstimi. 
+  """
+  nowTimi = time.time()
+  Time = nowTimi-UpphafsTimi
+  return Time
 ##############################################################################################
 ############ Main program ##################
 UPPHAFSRAKASTIG = measureHum()
@@ -185,9 +196,10 @@ while (True):   # Safety measure in case somebody puts "Fiskur" as the number of
   except ValueError as ex:
     print('%s\nCan not convert %s to int' % (ex, a))
 
-# Búum til tóm fylki og vistum gildi í þau. Notaðu seinna í grafi
-Cycle_duty = []
-RPM_Hall = []
+# Búum til tóm fylki og vistum gildi í þau. Notaðu til að halda utan um gögn
+# Notum NumPy array til þess að geta vistað sem .csv og einfaldað vinnslu á gögnum
+# Ath. seinna talan er vídd fylkis og þarf að aðalaga hana að því hversu margar breytur á að geyma
+gogn = np.empty((0,4), int)
 
 counter = 0
 
@@ -205,12 +217,12 @@ try :
     elif counter == 2:
       heaterOff()
     duty_cycle = counter*PWM_MAX
-    Cycle_duty.append(duty_cycle)
+    # Cycle_duty.append(duty_cycle)
     setFanSpeed(duty_cycle)
     time.sleep(4)
     print("Duty cycle: {:.2f}%".format(duty_cycle))
     tach_hall_rpm = float(tach_count(tach_count_time,TACH_GPIO_PIN))/tach_count_time/2/2*60
-    RPM_Hall.append(tach_hall_rpm)
+    #RPM_Hall.append(tach_hall_rpm)
     print("Hall RPM: {:.2f} RPM".format(tach_hall_rpm))
 
     counter += 1
@@ -227,18 +239,46 @@ try :
   heaterOff()
   GPIO.cleanup() # resets all GPIO ports used
 
+# Tökum mælingu og vistum gögn í nidurstodur.csv  
+try :
+  startTime = time.time() #Stilla upphafstima
+  while (counter < c): # User input akveður fjölda lota
+    heaterOn()
+    fanOn()
+    duty_cycle = b
+    setFanSpeed(duty_cycle) # viftuhraði settur í gildi sem var slegið inn í upphafi
+    measureTemp() 
+    timi = elapsedTime(startTime)
+    tach_hall_rpm = float(tach_count(tach_count_time,TACH_GPIO_PIN))/tach_count_time/2/2*60
+    gogn = np.append(gogn, np.array([[timi,hitastig,duty_cycle,tach_hall_rpm]]), axis=0)
+    print("Hitastig: {:.2f}°C    Timi: {:.2f}     RPM: {:.2f} RPM    Duty cycle: {:.2f}%"
+      .format(hitastig,timi,tach_hall_rpm,duty_cycle))
+    time.sleep(5)
+    counter += 1
+    # Save 2D numpy array to csv file
+    np.savetxt('nidurstodur.csv', gogn, delimiter=',', fmt='%d')
+
 # trap a CTRL+C keyboard interrupt
 except KeyboardInterrupt:
   setFanSpeed(FAN_OFF)
   GPIO.cleanup() # resets all GPIO ports used by this function
 
 # Gerum graf til þess að skoða niðurstöður
-a = plt.plot(Cycle_duty,RPM_Hall,label= "Hall skynjari")
-plt.xlabel("Duty Cycle")
-plt.ylabel("RPM")
-plt.title("Samanburður á Hall og IR skynjara")
+x = data[0:1] # geymir upplysingar um tima
+heat = data[1:2]
+duty = data[2:3]
+RPM = data [3:4]
+
+fig, axs = plt.subplots(3)
+fig.suptitle('Niðurstöður Mælinga')
+axs[0].plot(x, RPM)
+axs[0].set_title("Viftuhraði")
+axs[1].plot(x, duty)
+axs[1].set_title("Duty cycle")
+axs[2].plot(x, heat)
+axs[2].set_title("Hiti")
 plt.legend()
-plt.savefig('nidurstodur.png')
+plt.savefig('nstGraf.png')
 
 # reset all GPIO ports used. Important in order to prevent accidental fire hazards
 GPIO.cleanup()
