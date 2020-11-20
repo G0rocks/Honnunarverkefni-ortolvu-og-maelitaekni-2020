@@ -9,7 +9,7 @@ https://haskoliislands.instructure.com/courses/1144/assignments/10160
 
 1. Mælið hitastig við efri og neðri mörk línulega sviðs viftunar (u.þ.b. 10% og 90% af duty cycle) með hitagjafann í gangi. Veljið sem óskgildi hitastigið sem er mitt á milli þessara gilda.
 2. Breytið óskgildi í 50°C. Eftir að hafa náð jafvægi við 50°C breytist óskgildi á eftirfarandi hátt:
-  1. Hækkar línulega um 10°C í 30 sek 
+  1. Hækkar línulega um 10°C í 30 sek
   2. Óbreytt í 30 sek
   3. Lækkar línulega um 20°C í 30 sek
 
@@ -72,6 +72,7 @@ def setFanSpeed(PWM_duty_cycle):
   """
   Sets fan speed to PWM_duty_cycle. Must be between 0 and 100 (both 0 and 100 included)
   """
+  global fan_is_on
   if fan_is_on:
     fan.start(PWM_duty_cycle)    # set the speed according to the PWM duty cycle
   else:
@@ -82,6 +83,7 @@ def fanOff():
   """
   Turns off the fan
   """
+  global fan_is_on
   GPIO.output(RELAY_FAN_GPIO_PIN, GPIO.LOW)
   fan_is_on = False
   print("Fan off")
@@ -91,6 +93,7 @@ def fanOn():
   """
   Turns on the fan
   """
+  global fan_is_on
   GPIO.output(RELAY_FAN_GPIO_PIN, GPIO.HIGH)
   fan_is_on = True
   print("Fan on")
@@ -117,6 +120,7 @@ def heaterOff():
   """
   Turns off the heater
   """
+  global heater_is_on
   GPIO.output(RELAY_HEATER_GPIO_PIN, GPIO.LOW)
   heater_is_on = False
   print("Heater off")
@@ -126,6 +130,7 @@ def heaterOn():
   """
   Turns on the heater
   """
+  global heater_is_on
   GPIO.output(RELAY_HEATER_GPIO_PIN, GPIO.HIGH)
   heater_is_on = True
   print("Heater on")
