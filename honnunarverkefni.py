@@ -67,6 +67,8 @@ UPPHAFSRAKASTIG = 0 # Upphafsrakastig
 rakastig = 0 # breyta til að fylgjast með rakastigi
 deltaH = 0 # Breyta til að fylgjast með breytingu á rakastigi (e. humidity)
 
+gogn = np.empty((0,4), int)
+
 ############ Define functions ##################
 def setFanSpeed(PWM_duty_cycle):
   """
@@ -139,6 +141,7 @@ def measureTemp():
   """
   keepGoing = True
   loopCounter = 0
+  hitastig = -1
   while (keepGoing and loopCounter < 5):
     try: 
       hitastig = dhtDevice.temperature
@@ -151,7 +154,7 @@ def measureTemp():
         dhtDevice.exit()
         raise error
     loopCounter += 1
-  return hitastig
+  return (hitastig)
 
 def measureHum():
   """
@@ -182,15 +185,15 @@ def elapsedTime(UpphafsTimi):
   Time = nowTimi-UpphafsTimi
   return Time
 
-def measureAllez(hradi,fjoldi)
- """
- Tekur inn gildi fyrir hvaða duty-cycle viftan á að vera á og hversu margar lotur á að mæla 
- """
+def measureAllez(hradi,fjoldi,gogn):
+  """
+  Tekur inn gildi fyrir hvaða duty-cycle viftan á að vera á og hversu margar lotur á að mæla 
+  """
   counter = 0
   while (counter < fjoldi): # User input akveður fjölda lota
     duty_cycle = hradi
     setFanSpeed(duty_cycle) # viftuhraði settur í gildi sem var slegið inn í upphafi
-    measureTemp() 
+    hitastig = measureTemp() 
     timi = elapsedTime(startTime)
     tach_hall_rpm = float(tach_count(tach_count_time,TACH_GPIO_PIN))/tach_count_time/2/2*60
     gogn = np.append(gogn, np.array([[timi,hitastig,duty_cycle,tach_hall_rpm]]), axis=0)
@@ -222,28 +225,36 @@ c = int(input("Hversu margar lotur viltu profa?: "))
 # Búum til tóm fylki og vistum gildi í þau. Notaðu til að halda utan um gögn
 # Notum NumPy array til þess að geta vistað sem .csv og einfaldað vinnslu á gögnum
 # Ath. seinna talan er vídd fylkis og þarf að aðalaga hana að því hversu margar breytur á að geyma
-gogn = np.empty((0,4), int)
+# gogn = np.empty((0,4), int)
 
 counter = 0
 
-# Tökum mælingu og vistum gögn í nidurstodur.csv  
+# Tökum mælingu og vistum gögn í nidurstodur.csv
 try :
   startTime = time.time() #Stilla upphafstima
   heaterOn()
   fanOn()
-  while (counter < c): # User input akveður fjölda lota
-    duty_cycle = b
-    setFanSpeed(duty_cycle) # viftuhraði settur í gildi sem var slegið inn í upphafi
-    hitastig = measureTemp() 
-    timi = elapsedTime(startTime)
-    tach_hall_rpm = float(tach_count(tach_count_time,TACH_GPIO_PIN))/tach_count_time/2/2*60
-    gogn = np.append(gogn, np.array([[timi,hitastig,duty_cycle,tach_hall_rpm]]), axis=0)
-    print("Hitastig: {:.2f}°C    Timi: {:.2f}     RPM: {:.2f} RPM    Duty cycle: {:.2f}%"
-      .format(hitastig,timi,tach_hall_rpm,duty_cycle))
-    time.sleep(5)
-    counter += 1
-    # Save 2D numpy array to csv file
-    np.savetxt('nidurstodur.csv', gogn, delimiter=',', fmt='%d')
+  measureAllez(b,c,gogn)
+  measureAllez(80,c,gogn)
+  # Save 2D numpy array to csv file
+  np.savetxt('nidurstodur.csv', gogn, delimiter=',', fmt='%d') 
+# try :
+#   startTime = time.time() #Stilla upphafstima
+#   heaterOn()
+#   fanOn()
+  # while (counter < c): # User input akveður fjölda lota
+  #   duty_cycle = b
+  #   setFanSpeed(duty_cycle) # viftuhraði settur í gildi sem var slegið inn í upphafi
+  #   hitastig = measureTemp() 
+  #   timi = elapsedTime(startTime)
+  #   tach_hall_rpm = float(tach_count(tach_count_time,TACH_GPIO_PIN))/tach_count_time/2/2*60
+  #   gogn = np.append(gogn, np.array([[timi,hitastig,duty_cycle,tach_hall_rpm]]), axis=0)
+  #   print("Hitastig: {:.2f}°C    Timi: {:.2f}     RPM: {:.2f} RPM    Duty cycle: {:.2f}%"
+  #     .format(hitastig,timi,tach_hall_rpm,duty_cycle))
+  #   time.sleep(5)
+  #   counter += 1
+  #   # Save 2D numpy array to csv file
+  #   np.savetxt('nidurstodur.csv', gogn, delimiter=',', fmt='%d')
 
 # trap a CTRL+C keyboard interrupt
 except KeyboardInterrupt:
