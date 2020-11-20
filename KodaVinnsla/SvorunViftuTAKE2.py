@@ -1,14 +1,7 @@
-#!/usr/bin/python -u
-#
 import RPi.GPIO as GPIO
 import time
 import datetime
 import matplotlib.pyplot as plt
-
-###ATH
-#Þurfum að kortleggja svörun viftunar
-#Fáum hint um að nauðsynlegt er að prufa mun fleiri duty cycle
-#Dæmi profar 5 gildi
 
 # Configuration
 FAN_GPIO_PIN = 20       # BCM pin used to drive PWM fan
@@ -20,10 +13,6 @@ PWM_MAX = 100           # the PWM_duty_cycle 100%
 TACH_GPIO_PIN = 21      # BCM pin for reading the tachometer
 count_time = 2          # seconds for counting sensor changes
 
-FAN_OFF=PWM_OFF         # If no relay connection, this sets the fan speed to the lowest setting (230 RPM - https://www.arctic.ac/en/F12-PWM/AFACO-120P2-GBA01). If relay connection, use the relay to cut the power to the fan to turn it off.
-
-############ define functions ##################
-# Set fan speed
 RELAY_FAN_GPIO_PIN = 26 # BCM pin used to turn RELAY for FAN ON/OFF
 RELAY_HEATER_FAN_GPIO_PIN = 16 # BCM pin used to turn RELAY for HEATER ON/OFF
 
@@ -70,11 +59,6 @@ try:
   # tachometer - from a hall sensor located in the fan
   GPIO.setup(TACH_GPIO_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
-  ###Búum til tóm fylki og vistum gildi í þau. Notaðu seinna í grafi ##
-  Cycle_duty = []
-  RPM_Hall = []
-
-  counter= 0
   # Setting up relay for FAN
   GPIO.setup(RELAY_FAN_GPIO_PIN, GPIO.OUT, initial=GPIO.LOW) # HIGH MEANS RELAY IS OFF
 
@@ -83,9 +67,6 @@ try:
   ###Búum til tóm fylki og vistum gildi í þau. Notaðu seinna í grafi ##
   Cycle_duty = []
   RPM_Hall = []
-  # Búum til textaskrá til að vista mælingar
-  results = open("results.txt", "w")
-  results.write("Duty_Cycle Hall_RPM\n")
   ##############################################
 
   while (counter < a):
@@ -98,12 +79,6 @@ try:
     RPM_Hall.append(tach_hall_rpm)
     print("Hall RPM: {:.2f} RPM".format(tach_hall_rpm))
     counter += 1
-  
-    # Skrifa textaskrá 'results.txt' með niðurstöðum mælinga
-    results.write(str(duty_cycle) + " " + " " + str(tach_hall_rpm) + "\n")
-    counter += 1
-
-  results.close()
 
 # trap a CTRL+C keyboard interrupt
 except KeyboardInterrupt:
