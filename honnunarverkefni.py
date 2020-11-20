@@ -139,6 +139,7 @@ def measureTemp():
   """
   keepGoing = True
   loopCounter = 0
+  hitastig = -1
   while (keepGoing and loopCounter < 5):
     try: 
       hitastig = dhtDevice.temperature
@@ -182,10 +183,10 @@ def elapsedTime(UpphafsTimi):
   Time = nowTimi-UpphafsTimi
   return Time
 
-def measureAllez(hradi,fjoldi)
- """
- Tekur inn gildi fyrir hvaða duty-cycle viftan á að vera á og hversu margar lotur á að mæla 
- """
+def measureAllez(hradi,fjoldi):
+  """
+  Tekur inn gildi fyrir hvaða duty-cycle viftan á að vera á og hversu margar lotur á að mæla 
+  """
   counter = 0
   while (counter < fjoldi): # User input akveður fjölda lota
     duty_cycle = hradi
