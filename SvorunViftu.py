@@ -20,22 +20,15 @@ PWM_MAX = 100           # the PWM_duty_cycle 100%
 TACH_GPIO_PIN = 21      # BCM pin for reading the tachometer
 count_time = 2          # seconds for counting sensor changes
 
+
 FAN_OFF=PWM_OFF         # If no relay connection, this sets the fan speed to the lowest setting (230 RPM - https://www.arctic.ac/en/F12-PWM/AFACO-120P2-GBA01). If relay connection, use the relay to cut the power to the fan to turn it off.
 
 ############ define functions ##################
 # Set fan speed
-RELAY_FAN_GPIO_PIN = 26 # BCM pin used to turn RELAY for FAN ON/OFF
-RELAY_HEATER_FAN_GPIO_PIN = 16 # BCM pin used to turn RELAY for HEATER ON/OFF
-
-############ skilgreinum ##################
-# Stilla viftuhraða
 def setFanSpeed(PWM_duty_cycle):
   fan.start(PWM_duty_cycle)    # set the speed according to the PWM duty cycle
   return()
 
-################################################
-
-############ define functions ##################
 def tach_count(sec,GPIO_PIN):
   duration = datetime.timedelta(seconds=sec)      # measure for one second
   end_time = (datetime.datetime.now()+duration)   # set the time when to stop
@@ -50,20 +43,15 @@ def tach_count(sec,GPIO_PIN):
       counter += 1
   return (counter)
 
-################################################
 ####
 print("Hversu mörg duty cycle viltu prófa?")
 a = int(input("Fjöldi duty cylce:"))
-b = bool(input("Kveikt á hitara? yes,no?"))
 
-if(b == "yes")
-    GPIO.output(RELAY_HEATER_FAN_GPIO_PIN,GPIO.LOW) # Turn the HEATER ON
-
-########
+################################################
 try:
   GPIO.setwarnings(False)
   GPIO.setmode(GPIO.BCM)
-  # PWM notað til að stýra viftuhraða
+  # PWM used to control the fan's speed
   GPIO.setup(FAN_GPIO_PIN, GPIO.OUT, initial=GPIO.LOW)
   fan = GPIO.PWM(FAN_GPIO_PIN,PWM_FREQ)
   setFanSpeed(PWM_OFF)
@@ -75,18 +63,6 @@ try:
   RPM_Hall = []
 
   counter= 0
-  # Setting up relay for FAN
-  GPIO.setup(RELAY_FAN_GPIO_PIN, GPIO.OUT, initial=GPIO.LOW) # HIGH MEANS RELAY IS OFF
-
-  counter= 0
-
-  ###Búum til tóm fylki og vistum gildi í þau. Notaðu seinna í grafi ##
-  Cycle_duty = []
-  RPM_Hall = []
-  # Búum til textaskrá til að vista mælingar
-  results = open("results.txt", "w")
-  results.write("Duty_Cycle Hall_RPM\n")
-  ##############################################
 
   while (counter < a):
     duty_cycle = PWM_MAX*counter/(a-1)
@@ -99,27 +75,15 @@ try:
     print("Hall RPM: {:.2f} RPM".format(tach_hall_rpm))
     counter += 1
   
-    # Skrifa textaskrá 'results.txt' með niðurstöðum mælinga
-    results.write(str(duty_cycle) + " " + " " + str(tach_hall_rpm) + "\n")
-    counter += 1
-
-  results.close()
-
 # trap a CTRL+C keyboard interrupt
 except KeyboardInterrupt:
   setFanSpeed(FAN_OFF)
   GPIO.cleanup() # resets all GPIO ports used by this function
 
-###Gerum graf af duty cycle sem fall af RPM fyrir báða skynjara
-###############################################################
+###Gerum graf til þess að skoða niðurstöður
 a = plt.plot(Cycle_duty,RPM_Hall,label= "Hall skynjari")
 plt.xlabel("Duty Cycle")
 plt.ylabel("RPM")
-plt.title("Könnun á svörun viftu")
+plt.title("Samanburður á Hall og IR skynjara")
 plt.legend()
 plt.savefig('nidurstodur.png')
-##Slokkva á viftu
-setFanSpeed(PWM_OFF)
-GPIO.setup(RELAY_FAN_GPIO_PIN, GPIO.OUT, initial=GPIO.HIGH) # HIGH MEANS RELAY IS OFF
-GPIO.cleanup() # resets all GPIO ports used by this function
-####

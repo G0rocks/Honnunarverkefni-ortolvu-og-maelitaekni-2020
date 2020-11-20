@@ -1,0 +1,244 @@
+"""
+Hönnunarverkefni - Haust 2020
+Lokaverkefni í áfanganum Örtölvu og mælitækni við HÍ.
+Höfundar: Benedikt, Huldar, Ísak og Rúnar
+
+Verkefnalýsing:
+https://haskoliislands.instructure.com/courses/1144/assignments/10160
+Í verkefninu á að hanna, útfæra og prófa stýringu fyrir véleindakerfi. Véleindakerfið er samsett af kerfi sem á að stýra (hitastig í rými), nema (hitanema), hreyfli (hitagjafa og viftu) og tölvu. Kröfurnar eru að kerfið sé stöðugt (mögnunaröryggi a.m.k. 2)  og geti haldið stöðugu óskgildi og brugðist við breytingum í óskgildi eins og lýst er hér fyrir neðan á sem bestan hátt hvað varðar hraða, skekkju í jafnvægi, næmni gagnvart truflunum og breytileika og stýrimerki.
+
+1. Mælið hitastig við efri og neðri mörk línulega sviðs viftunar (u.þ.b. 10% og 90% af duty cycle) með hitagjafann í gangi. Veljið sem óskgildi hitastigið sem er mitt á milli þessara gilda.
+2. Breytið óskgildi í 50°C. Eftir að hafa náð jafvægi við 50°C breytist óskgildi á eftirfarandi hátt:
+  1. Hækkar línulega um 10°C í 30 sek 
+  2. Óbreytt í 30 sek
+  3. Lækkar línulega um 20°C í 30 sek
+
+Gagnlegar demo skrár: PWM_demo.py hall_sensor_demo.py RELAY_test.py
+"""
+
+############ Import modules ##################
+from time import sleep
+import RPi.GPIO as GPIO             # Documentation: https://sourceforge.net/p/raspberry-gpio-python/wiki/Home/
+import time                         # Documentation: https://docs.python.org/3/library/time.html
+import datetime                     # Documentation: https://docs.python.org/3/library/datetime.html
+import board                        # Documentation: https://pypi.org/project/board/
+import adafruit_dht                 # Documentation: https://circuitpython.readthedocs.io/projects/dht/en/latest/#
+import matplotlib.pyplot as plt     # Documentation: https://matplotlib.org/api/pyplot_api.html
+# import termplotlib                  # Documentation: https://pypi.org/project/termplotlib/ # Athuga hvort hægt sé að setja termplotlib upp á raspberry pi áður en við notum
+import threading                    # Documentation: https://docs.python.org/3/library/threading.html # Getum vonandi notað tvo threada til að láta annan þeirra stjórna óskgildinu og hinn vera stýringin okkar
+from threading import thread
+
+############ Config ##################
+# GPIO setup
+GPIO.setwarnings(False)       # Disable warnings about pin configuration being something other than the default
+GPIO.setmode(GPIO.BCM)        # Use Broadcom pinout
+
+# Fan config
+FAN_GPIO_PIN = 20       # BCM pin used to drive PWM fan
+PWM_FREQ = 25000        # [Hz] 25kHz for PWM control
+PWM_OFF = 0             # the PWM_duty_cycle 0%
+PWM_MAX = 100           # the PWM_duty_cycle 100%
+TACH_GPIO_PIN = 21      # BCM pin for reading the tachometer
+tach_count_time = 2          # seconds for counting sensor changes
+fan_is_on = False       # Boolean variable. False if fan is off and True if fan is on
+FAN_OFF=PWM_OFF         # If no relay connection, this sets the fan speed to the lowest setting (230 RPM - https://www.arctic.ac/en/F12-PWM/AFACO-120P2-GBA01). If relay connection, use the relay to cut the power to the fan to turn it off.
+# Setting up relay for FAN
+RELAY_FAN_GPIO_PIN = 26         # BCM pin used to turn RELAY for FAN ON/OFF
+GPIO.setup(RELAY_FAN_GPIO_PIN, GPIO.OUT, initial=GPIO.HIGH) # HIGH MEANS RELAY IS OFF
+
+# PWM used to control the fan's speed
+GPIO.setup(FAN_GPIO_PIN, GPIO.OUT, initial=GPIO.LOW)  # Set FAN_GPIO_PIN as output with the initial value GPIO.LOW
+fan = GPIO.PWM(FAN_GPIO_PIN,PWM_FREQ)                 # create a PWM instance called fan
+# tachometer - from a hall sensor located in the fan
+GPIO.setup(TACH_GPIO_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+# Setting up relay for Heater
+RELAY_HEATER_GPIO_PIN = 16  # BCM pin used to turn RELAY for HEATER ON/OFF
+GPIO.setup(RELAY_HEATER_GPIO_PIN, GPIO.OUT, initial=GPIO.HIGH) # HIGH MEANS RELAY IS OFF
+heater_is_on = False       # Boolean variable. False if heater is off and True if heater is on
+
+# Sensor config
+sensor_cache_clear_time = 2 # Hversu langan tíma við þurfum að bíða eftir því að mælirinn tæmi minnið sitt ef hann nær ekki að mæla (a.m.k. 2 sekúndur)
+dhtDevice = adafruit_dht.DHT22(board.D5)
+UPPHAFSHITASTIG = 0 # Upphafshitastig
+hitastig = 0  # Breyta til að fylgjast með hitastigi
+deltaT = 0 # breyta til að fylgjast með breyting á hitastigi
+UPPHAFSRAKASTIG = 0 # Upphafsrakastig
+rakastig = 0 # breyta til að fylgjast með rakastigi
+deltaH = 0 # Breyta til að fylgjast með breytingu á rakastigi (e. humidity)
+
+############ Define functions ##################
+def setFanSpeed(PWM_duty_cycle):
+  """
+  Sets fan speed to PWM_duty_cycle. Must be between 0 and 100 (both 0 and 100 included)
+  """
+  if fan_is_on:
+    fan.start(PWM_duty_cycle)    # set the speed according to the PWM duty cycle
+  else:
+    print("Turn the fan on first")
+  return()
+
+def fanOff():
+  """
+  Turns off the fan
+  """
+  GPIO.output(RELAY_FAN_GPIO_PIN, GPIO.LOW)
+  fan_is_on = False
+  print("Fan off")
+  return()
+
+def fanOn():
+  """
+  Turns on the fan
+  """
+  GPIO.output(RELAY_FAN_GPIO_PIN, GPIO.HIGH)
+  fan_is_on = True
+  print("Fan on")
+  return()
+
+def tach_count(sec,GPIO_PIN):
+  """
+  Measures how many times an input is received through GPIO_PIN in sec number of seconds
+  """
+  duration = datetime.timedelta(seconds=sec)      # measure for one second
+  end_time = (datetime.datetime.now()+duration)   # set the time when to stop
+  current_pin_status = GPIO.input(GPIO_PIN)
+  last_pin_status = 2
+  counter = 0
+  while ( datetime.datetime.now() < end_time):
+    current_pin_status=GPIO.input(GPIO_PIN)
+    if (current_pin_status != last_pin_status):
+      # print(current_pin_status)
+      last_pin_status = current_pin_status
+      counter += 1
+  return (counter)
+
+def heaterOff():
+  """
+  Turns off the heater
+  """
+  GPIO.output(RELAY_HEATER_GPIO_PIN, GPIO.LOW)
+  heater_is_on = False
+  print("Heater off")
+  return()
+
+def heaterOn():
+  """
+  Turns on the heater
+  """
+  GPIO.output(RELAY_HEATER_GPIO_PIN, GPIO.HIGH)
+  heater_is_on = True
+  print("Heater on")
+  return()
+
+def measureTemp():
+  """
+  Mælir hitastig beint í breytun 'hitastig'. Ef það kemur upp villa við mælingu þá prentast hún út, við bíðum í sensor_cache_clear_time og reynum aftur, hámark 5 sinnum, svo gefumst við upp.
+  """
+  keepGoing = True
+  loopCounter = 0
+  while (keepGoing and loopCounter < 5):
+    try: 
+      hitastig = dhtDevice.temperature
+      keepGoing = False
+    except RuntimeError as error:
+        # Villur koma reglulega upp - getur verið erfitt að lesa gildi nemans, bara reyna aftur
+        print(error.args[0])
+        time.sleep(sensor_cache_clear_time)
+    except Exception as error:
+        dhtDevice.exit()
+        raise error
+    loopCounter += 1
+
+def measureHum():
+  """
+  Mælir rakastig beint í breytuna 'rakastig'. Ef það kemur upp villa við mælingu þá prentast hún út, við bíðum í sensor_cache_clear_time og reynum aftur, hámark 5 sinnum, svo gefumst við upp.
+  """
+  keepGoing = True
+  loopCounter = 0
+  while (keepGoing and loopCounter < 5):
+    try: 
+      rakastig = dhtDevice.humidity
+      keepGoing = False
+    except RuntimeError as error:
+        # Villur koma reglulega upp - getur verið erfitt að lesa gildi nemans, bara reyna aftur
+        print(error.args[0])
+        time.sleep(sensor_cache_clear_time)
+    except Exception as error:
+        dhtDevice.exit()
+        raise error
+    loopCounter += 1
+
+##############################################################################################
+############ Main program ##################
+UPPHAFSRAKASTIG = measureHum()
+UPPHAFSHITASTIG = measureTemp()
+
+print("Hversu mörg duty cycle viltu prófa?")
+a = int(input("Fjöldi duty cylce: "))
+while (True):   # Safety measure in case somebody puts "Fiskur" as the number of duty cycles
+  try:
+    while (int(a) < 1 ):
+      print("Sláðu inn heila tölu sem er stærri en 0")
+      a = int(input("Fjöldi duty cylce: "))
+    break
+  except ValueError as ex:
+    print('%s\nCan not convert %s to int' % (ex, a))
+
+# Búum til tóm fylki og vistum gildi í þau. Notaðu seinna í grafi
+Cycle_duty = []
+RPM_Hall = []
+
+counter = 0
+
+try :
+  # Prófum alla hlutina
+  while (counter < a):
+    measureTemp()
+    measureHum()
+    print("Hitastig: {:.2f}°C", hitastig)
+    print("rakastig: {:.2f}[unit=%?]", rakastig)
+    if counter == 0:
+      fanOn()
+    elif counter == 1:
+      heaterOn()
+    elif counter == 2:
+      heaterOff()
+    duty_cycle = counter*PWM_MAX
+    Cycle_duty.append(duty_cycle)
+    setFanSpeed(duty_cycle)
+    time.sleep(4)
+    print("Duty cycle: {:.2f}%".format(duty_cycle))
+    tach_hall_rpm = float(tach_count(tach_count_time,TACH_GPIO_PIN))/tach_count_time/2/2*60
+    RPM_Hall.append(tach_hall_rpm)
+    print("Hall RPM: {:.2f} RPM".format(tach_hall_rpm))
+
+    counter += 1
+
+    if counter == a-1:
+      fanOff()
+      sleep(4)
+      measureTemp()
+      measureHum()
+      print("Hitastig: {:.2f}°C", hitastig)
+      print("rakastig: {:.2f}[unit=%?]", rakastig)
+
+  fanOff()
+  heaterOff()
+  GPIO.cleanup() # resets all GPIO ports used
+
+# trap a CTRL+C keyboard interrupt
+except KeyboardInterrupt:
+  setFanSpeed(FAN_OFF)
+  GPIO.cleanup() # resets all GPIO ports used by this function
+
+# Gerum graf til þess að skoða niðurstöður
+a = plt.plot(Cycle_duty,RPM_Hall,label= "Hall skynjari")
+plt.xlabel("Duty Cycle")
+plt.ylabel("RPM")
+plt.title("Samanburður á Hall og IR skynjara")
+plt.legend()
+plt.savefig('nidurstodur.png')
+
+# reset all GPIO ports used. Important in order to prevent accidental fire hazards
+GPIO.cleanup()
