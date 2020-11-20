@@ -27,11 +27,15 @@ import matplotlib.pyplot as plt     # Documentation: https://matplotlib.org/api/
 # import termplotlib                  # Documentation: https://pypi.org/project/termplotlib/ # Athuga hvort hægt sé að setja termplotlib upp á raspberry pi áður en við notum
 #import threading                    # Documentation: https://docs.python.org/3/library/threading.html # Getum vonandi notað tvo threada til að láta annan þeirra stjórna óskgildinu og hinn vera stýringin okkar
 #from threading import thread
-import numpy as np                  # Documentation: 
+import numpy as np                  # Documentation: https://numpy.org/doc/
 ############ Config ##################
 # GPIO setup
 GPIO.setwarnings(False)       # Disable warnings about pin configuration being something other than the default
 GPIO.setmode(GPIO.BCM)        # Use Broadcom pinout
+
+# Data config
+gogn = np.empty((0,4), int)   # Býr til gagnatöflu með 4 dálkum sem tekur bara við int gildum. Dálkar: [timi,hitastig,duty_cycle,tach_hall_rpm]
+maxDeltaT = 0.1     # Hámarks hitamismunur á seinustu mælingu og mælingunni sem var fyrir 10 mælingum til að við skilgreinum okkur við jafnvægi
 
 # Fan config
 FAN_GPIO_PIN = 20       # BCM pin used to drive PWM fan
@@ -66,8 +70,6 @@ deltaT = 0 # breyta til að fylgjast með breyting á hitastigi
 UPPHAFSRAKASTIG = 0 # Upphafsrakastig
 rakastig = 0 # breyta til að fylgjast með rakastigi
 deltaH = 0 # Breyta til að fylgjast með breytingu á rakastigi (e. humidity)
-
-gogn = np.empty((0,4), int)
 
 ############ Define functions ##################
 def setFanSpeed(PWM_duty_cycle):
@@ -190,9 +192,26 @@ def elapsedTime(UpphafsTimi):
   Time = nowTimi-UpphafsTimi
   return Time
 
+def is_in_equilibrium(gogn):
+  """
+  Athugar hvort að hitamismunur á seinustu mælingu og mælingunni sem var 10 mælingum fyrr sé nógu lítið til að hægt sé að tala um að kerfið sé komið í jafnvægi. Skilar True ef jafnvægi og False ef ekki jafnvægi
+  """
+  global maxDeltaT
+  numRows = gogn.shape[0]
+  if numRows<11:
+    T1 = gogn[0][1]
+  else:
+    T1 = gogn[numRows-11][1]
+  T2 = gogn[numRows-1][1]
+  deltaT = T2-T1
+  if deltaT <=maxDeltaT:
+    return True
+  else:
+    return False
+
 def measureAllez(hradi,fjoldi,gogn):
   """
-  Tekur inn gildi fyrir hvaða duty-cycle viftan á að vera á og hversu margar lotur á að mæla 
+  Tekur inn gildi fyrir hvaða duty-cycle viftan á að vera á og hversu margar lotur á að mæla og framkvæmir þann fjölda mælinga á þessu tiltekna duty-cycle
   """
   counter = 0
   while (counter < fjoldi): # User input akveður fjölda lota
