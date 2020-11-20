@@ -86,7 +86,7 @@ def fanOff():
   Turns off the fan
   """
   global fan_is_on
-  GPIO.output(RELAY_FAN_GPIO_PIN, GPIO.LOW)
+  GPIO.output(RELAY_FAN_GPIO_PIN, GPIO.HIGH)
   fan_is_on = False
   print("Fan off")
   return()
@@ -96,7 +96,7 @@ def fanOn():
   Turns on the fan
   """
   global fan_is_on
-  GPIO.output(RELAY_FAN_GPIO_PIN, GPIO.HIGH)
+  GPIO.output(RELAY_FAN_GPIO_PIN, GPIO.LOW)
   fan_is_on = True
   print("Fan on")
   return()
@@ -123,7 +123,7 @@ def heaterOff():
   Turns off the heater
   """
   global heater_is_on
-  GPIO.output(RELAY_HEATER_GPIO_PIN, GPIO.LOW)
+  GPIO.output(RELAY_HEATER_GPIO_PIN, GPIO.HIGH)
   heater_is_on = False
   print("Heater off")
   return()
@@ -133,7 +133,7 @@ def heaterOn():
   Turns on the heater
   """
   global heater_is_on
-  GPIO.output(RELAY_HEATER_GPIO_PIN, GPIO.HIGH)
+  GPIO.output(RELAY_HEATER_GPIO_PIN, GPIO.LOW)
   heater_is_on = True
   print("Heater on")
   return()
@@ -190,11 +190,12 @@ def elapsedTime(UpphafsTimi):
   Time = nowTimi-UpphafsTimi
   return Time
 
-def measureAllez(hradi,fjoldi,gogn):
+def measureAllez(hradi,fjoldi):
   """
   Tekur inn gildi fyrir hvaða duty-cycle viftan á að vera á og hversu margar lotur á að mæla 
   """
   counter = 0
+  global gogn
   while (counter < fjoldi): # User input akveður fjölda lota
     duty_cycle = hradi
     setFanSpeed(duty_cycle) # viftuhraði settur í gildi sem var slegið inn í upphafi
@@ -206,6 +207,7 @@ def measureAllez(hradi,fjoldi,gogn):
       .format(hitastig,timi,tach_hall_rpm,duty_cycle))
     time.sleep(5)
     counter += 1
+    np.savetxt('nidurstodur.csv', gogn, delimiter=',', fmt='%d')
 
 ############################################################################################
 #################################### Main program ##########################################
@@ -239,10 +241,10 @@ try :
   startTime = time.time() #Stilla upphafstima
   heaterOn()
   fanOn()
-  measureAllez(b,c,gogn)
-  measureAllez(80,c,gogn)
+  measureAllez(b,c)
+  measureAllez(20,c)
   # Save 2D numpy array to csv file
-  np.savetxt('nidurstodur.csv', gogn, delimiter=',', fmt='%d') 
+ # np.savetxt('nidurstodur.csv', gogn, delimiter=',', fmt='%d') 
 # try :
 #   startTime = time.time() #Stilla upphafstima
 #   heaterOn()
@@ -267,21 +269,21 @@ except KeyboardInterrupt:
   GPIO.cleanup() # resets all GPIO ports used by this function
 
 # Gerum graf til þess að skoða niðurstöður
-x = gogn[0:1] # geymir upplysingar um tima
-heat = gogn[1:2]
-duty = gogn[2:3]
-RPM = gogn[3:4]
+# x = gogn[0:1] # geymir upplysingar um tima
+# heat = gogn[1:2]
+# duty = gogn[2:3]
+# rpm = gogn[3:4]
 
-fig, axs = plt.subplots(3)
-fig.suptitle('Niðurstöður Mælinga')
-axs[0].plot(x, RPM)
-axs[0].set_title("Viftuhraði")
-axs[1].plot(x, duty)
-axs[1].set_title("Duty cycle")
-axs[2].plot(x, heat)
-axs[2].set_title("Hiti")
-plt.legend()
-plt.savefig('nstGraf.png')
+# fig, axs = plt.subplots(3)
+# fig.suptitle('Niðurstöður Mælinga')
+# axs[0].plot(x, rpm)
+# axs[0].set_title("Viftuhraði")
+# axs[1].plot(x, duty)
+# axs[1].set_title("Duty cycle")
+# axs[2].plot(x, heat)
+# axs[2].set_title("Hiti")
+# plt.legend()
+# plt.savefig('nstGraf.png')
 
 # reset all GPIO ports used. Important in order to prevent accidental fire hazards
 fanOff()
