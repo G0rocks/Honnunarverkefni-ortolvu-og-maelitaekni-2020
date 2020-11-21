@@ -25,8 +25,8 @@ import board                        # Documentation: https://pypi.org/project/bo
 import adafruit_dht                 # Documentation: https://circuitpython.readthedocs.io/projects/dht/en/latest/#
 import matplotlib.pyplot as plt     # Documentation: https://matplotlib.org/api/pyplot_api.html
 # import termplotlib                  # Documentation: https://pypi.org/project/termplotlib/ # Athuga hvort hægt sé að setja termplotlib upp á raspberry pi áður en við notum
-#import threading                    # Documentation: https://docs.python.org/3/library/threading.html # Getum vonandi notað tvo threada til að láta annan þeirra stjórna óskgildinu og hinn vera stýringin okkar
-#from threading import thread
+import threading                    # Documentation: https://docs.python.org/3/library/threading.html # Getum vonandi notað tvo threada til að láta annan þeirra stjórna óskgildinu og hinn vera stýringin okkar
+from threading import thread
 import numpy as np                  # Documentation: https://numpy.org/doc/
 ############ Config ##################
 # GPIO setup
@@ -36,6 +36,7 @@ GPIO.setmode(GPIO.BCM)        # Use Broadcom pinout
 # Data config
 gogn = np.empty((0,4), int)   # Býr til gagnatöflu með 4 dálkum sem tekur bara við int gildum. Dálkar: [timi,hitastig,duty_cycle,tach_hall_rpm]
 maxDeltaT = 0.1     # Hámarks hitamismunur á seinustu mælingu og mælingunni sem var fyrir 10 mælingum til að við skilgreinum okkur við jafnvægi
+oskgildi = 20       # Óskgildið sem stýringin reynir að ná. Skilgreint við herbergishitastig og er sett upp síðar.
 
 # Fan config
 FAN_GPIO_PIN = 20       # BCM pin used to drive PWM fan
@@ -209,18 +210,23 @@ def is_in_equilibrium(gogn):
   else:
     return False
 
-def measureAllez(hradi,fjoldi,gogn):
+def get_RPM():
+  """
+  Fall sem skilar RPM viftu sem float
+  """
+  return float(tach_count(tach_count_time,TACH_GPIO_PIN))/tach_count_time/2/2*60
+
+def measureAllez(duty_cycle,fjoldi):
   """
   Tekur inn gildi fyrir hvaða duty-cycle viftan á að vera á og hversu margar lotur á að mæla og framkvæmir þann fjölda mælinga á þessu tiltekna duty-cycle
-  """
+  """ 
   counter = 0
   global gogn
   while (counter < fjoldi): # User input akveður fjölda lota
-    duty_cycle = hradi
     setFanSpeed(duty_cycle) # viftuhraði settur í gildi sem var slegið inn í upphafi
     hitastig = measureTemp() 
     timi = elapsedTime(startTime)
-    tach_hall_rpm = float(tach_count(tach_count_time,TACH_GPIO_PIN))/tach_count_time/2/2*60
+    tach_hall_rpm = get_RPM()
     gogn = np.append(gogn, np.array([[timi,hitastig,duty_cycle,tach_hall_rpm]]), axis=0)
     print("Hitastig: {:.2f}°C    Timi: {:.2f}     RPM: {:.2f} RPM    Duty cycle: {:.2f}%"
       .format(hitastig,timi,tach_hall_rpm,duty_cycle))
@@ -228,10 +234,52 @@ def measureAllez(hradi,fjoldi,gogn):
     counter += 1
     np.savetxt('nidurstodur.csv', gogn, delimiter=',', fmt='%d')
 
+def oskgildi_setup():
+  """
+  Fall sem gerir mælingar á 10% og 90% duty cycle og finnur hitastig sem er miðgildið og skilar því
+  """
+  global oskgildi
+  gogn_local = np.empty((0,1), int)
+  fanOn()
+  setFanSpeed(10)
+  sleep(2)
+  while (is_in_equilibrium(gogn_local)):
+    gogn_local = np.append(gogn_local, np.array([[hitastig]]), axis=0)
+    sleep(2)
+  T1 = gogn_local[gogn_local.shape[0]-1][0]
+  setFanSpeed(90)
+  sleep(2)
+  while (is_in_equilibrium(gogn_local)):
+    gogn_local = np.append(gogn_local, np.array([[hitastig]]), axis=0)
+    sleep(2)
+  T2 = gogn_local[gogn_local.shape[0]-1][0]
+  oskgildi = (T1+T2)/2
+  
+
+############################################################################################
+#################################### Threads ##########################################
+def oskgildi_thread_func():
+  """
+  Þráður sem sér um að stjórna óskgildinu eins og notandi.
+  """
+  global oskgildi
+  pass
+
+def styring_thread_func():
+  """
+  Þráður sem sér um að reyna að láta hitastigið sem neminn nemur fylgja óskgildinu.
+  """
+  global oskgildi
+  pass
+
 ############################################################################################
 #################################### Main program ##########################################
 UPPHAFSRAKASTIG = measureHum()
 UPPHAFSHITASTIG = measureTemp()
+oskgildi_setup()
+
+oskgildi_thread = threading.Thread(target=oskgildi_thread_func)
+styring_thread = threading.Thread(target=styring_thread_func)
 
 print("____Yfirfærslufall profun____")
 b = int(input("Hvaða duty cycle viltu profa?: "))
@@ -303,6 +351,10 @@ except KeyboardInterrupt:
 # axs[2].set_title("Hiti")
 # plt.legend()
 # plt.savefig('nstGraf.png')
+
+oskgildi_thread.start()
+styring_thread.start()
+
 
 # reset all GPIO ports used. Important in order to prevent accidental fire hazards
 fanOff()
