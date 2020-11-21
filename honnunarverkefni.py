@@ -224,15 +224,16 @@ def measureAllez(duty_cycle,fjoldi):
   global gogn
   while (counter < fjoldi): # User input akveður fjölda lota
     setFanSpeed(duty_cycle) # viftuhraði settur í gildi sem var slegið inn í upphafi
-    hitastig = measureTemp() 
-    timi = elapsedTime(startTime)
-    tach_hall_rpm = get_RPM()
-    gogn = np.append(gogn, np.array([[timi,hitastig,duty_cycle,tach_hall_rpm]]), axis=0)
-    print("Hitastig: {:.2f}°C    Timi: {:.2f}     RPM: {:.2f} RPM    Duty cycle: {:.2f}%"
-      .format(hitastig,timi,tach_hall_rpm,duty_cycle))
-    time.sleep(5)
-    counter += 1
-    np.savetxt('nidurstodur.csv', gogn, delimiter=',', fmt='%d')
+    hitastig = measureTemp()
+    if hitastig != -1:
+      timi = elapsedTime(startTime)
+      tach_hall_rpm = get_RPM()
+      gogn = np.append(gogn, np.array([[timi,hitastig,duty_cycle,tach_hall_rpm]]), axis=0)
+      print("Hitastig: {:.2f}°C    Timi: {:.2f}     RPM: {:.2f} RPM    Duty cycle: {:.2f}%"
+        .format(hitastig,timi,tach_hall_rpm,duty_cycle))
+      time.sleep(5)
+      counter += 1
+      np.savetxt('nidurstodur.csv', gogn, delimiter=',', fmt='%d')
 
 def oskgildi_setup():
   """
@@ -254,7 +255,6 @@ def oskgildi_setup():
     sleep(2)
   T2 = gogn_local[gogn_local.shape[0]-1][0]
   oskgildi = (T1+T2)/2
-  
 
 ############################################################################################
 #################################### Threads ##########################################
