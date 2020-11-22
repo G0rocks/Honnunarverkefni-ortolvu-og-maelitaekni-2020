@@ -1,3 +1,4 @@
+# coding=UTF-8
 """
 Hönnunarverkefni - Haust 2020
 Lokaverkefni í áfanganum Örtölvu og mælitækni við HÍ.
@@ -26,7 +27,7 @@ import adafruit_dht                 # Documentation: https://circuitpython.readt
 import matplotlib.pyplot as plt     # Documentation: https://matplotlib.org/api/pyplot_api.html
 # import termplotlib                  # Documentation: https://pypi.org/project/termplotlib/ # Athuga hvort hægt sé að setja termplotlib upp á raspberry pi áður en við notum
 import threading                    # Documentation: https://docs.python.org/3/library/threading.html # Getum vonandi notað tvo threada til að láta annan þeirra stjórna óskgildinu og hinn vera stýringin okkar
-from threading import thread
+from threading import Thread        # Maður þarf að importa með "pip3 install thread6"
 import numpy as np                  # Documentation: https://numpy.org/doc/
 ############ Config ##################
 # GPIO setup
@@ -35,7 +36,7 @@ GPIO.setmode(GPIO.BCM)        # Use Broadcom pinout
 
 # Data config
 gogn = np.empty((0,4), int)   # Býr til gagnatöflu með 4 dálkum sem tekur bara við int gildum. Dálkar: [timi,hitastig,duty_cycle,tach_hall_rpm]
-maxDeltaT = 0.1     # Hámarks hitamismunur á seinustu mælingu og mælingunni sem var fyrir 10 mælingum til að við skilgreinum okkur við jafnvægi
+maxDeltaT = 1.0     # Hámarks hitamismunur á seinustu mælingu og mælingunni sem var fyrir 10 mælingum til að við skilgreinum okkur við jafnvægi
 oskgildi = 20       # Óskgildið sem stýringin reynir að ná. Skilgreint við herbergishitastig og er sett upp síðar.
 
 # Fan config
@@ -193,19 +194,21 @@ def elapsedTime(UpphafsTimi):
   Time = nowTimi-UpphafsTimi
   return Time
 
-def is_in_equilibrium(gogn):
+def is_in_equilibrium(gogn, numCol):
   """
-  Athugar hvort að hitamismunur á seinustu mælingu og mælingunni sem var 10 mælingum fyrr sé nógu lítið til að hægt sé að tala um að kerfið sé komið í jafnvægi. Skilar True ef jafnvægi og False ef ekki jafnvægi
+  Tekur inn numpy array gogn og númer dálks numCol sem inniheldur hitastigsmælingar. Athugar hvort að hitamismunur á seinustu mælingu og mælingunni sem var 10 mælingum fyrr sé nógu lítið til að hægt sé að tala um að kerfið sé komið í jafnvægi. Skilar True ef jafnvægi og False ef ekki jafnvægi.
   """
   global maxDeltaT
   numRows = gogn.shape[0]
-  if numRows<11:
-    T1 = gogn[0][1]
+  if numRows<12:
+    T1 = gogn[0][numCol]
   else:
-    T1 = gogn[numRows-11][1]
-  T2 = gogn[numRows-1][1]
+    T1 = gogn[numRows-11][numCol]
+  T2 = gogn[numRows-1][numCol]
   deltaT = T2-T1
-  if deltaT <=maxDeltaT:
+  print("DeltaT: {:.3f}".format(deltaT))
+  print("maxDeltaT: {:.3f}".format(maxDeltaT))
+  if (abs(deltaT) <= maxDeltaT):
     return True
   else:
     return False
@@ -239,22 +242,38 @@ def oskgildi_setup():
   """
   Fall sem gerir mælingar á 10% og 90% duty cycle og finnur hitastig sem er miðgildið og skilar því
   """
+  print("Set upp upphafsóskgildi")
   global oskgildi
   gogn_local = np.empty((0,1), int)
-  fanOn()
-  setFanSpeed(10)
-  sleep(2)
-  while (is_in_equilibrium(gogn_local)):
-    gogn_local = np.append(gogn_local, np.array([[hitastig]]), axis=0)
+  try:
+    fanOn()
+    setFanSpeed(10)
     sleep(2)
-  T1 = gogn_local[gogn_local.shape[0]-1][0]
-  setFanSpeed(90)
-  sleep(2)
-  while (is_in_equilibrium(gogn_local)):
+    hitastig = measureTemp()
     gogn_local = np.append(gogn_local, np.array([[hitastig]]), axis=0)
-    sleep(2)
-  T2 = gogn_local[gogn_local.shape[0]-1][0]
-  oskgildi = (T1+T2)/2
+    while (is_in_equilibrium(gogn_local, 0)):
+      hitastig = measureTemp()
+      if hitastig != -1:
+        gogn_local = np.append(gogn_local, np.array([[hitastig]]), axis=0)
+        sleep(2)
+        print("gogn_local: \n", gogn_local)
+    T1 = gogn_local[gogn_local.shape[0]-1][0]
+    print("T1: ", T1)
+    setFanSpeed(90)
+    sleep(5)
+    while (is_in_equilibrium(gogn_local, 0)):
+      hitastig = measureTemp()
+      if hitastig != -1:
+        gogn_local = np.append(gogn_local, np.array([[hitastig]]), axis=0)
+        sleep(2)
+    T2 = gogn_local[gogn_local.shape[0]-1][0]
+    print("T2: ", T2)
+    oskgildi = (T1+T2)/2
+    print("upphafsóskgildi: ", oskgildi)
+  # trap a CTRL+C keyboard interrupt
+  except KeyboardInterrupt:
+    setFanSpeed(FAN_OFF)
+    GPIO.cleanup() # resets all GPIO ports used by this function
 
 ############################################################################################
 #################################### Threads ##########################################
@@ -263,14 +282,24 @@ def oskgildi_thread_func():
   Þráður sem sér um að stjórna óskgildinu eins og notandi.
   """
   global oskgildi
-  pass
+  try:
+    pass
+  # trap a CTRL+C keyboard interrupt
+  except KeyboardInterrupt:
+    setFanSpeed(FAN_OFF)
+    GPIO.cleanup() # resets all GPIO ports used by this function
 
 def styring_thread_func():
   """
   Þráður sem sér um að reyna að láta hitastigið sem neminn nemur fylgja óskgildinu.
   """
   global oskgildi
-  pass
+  try:
+    pass
+  # trap a CTRL+C keyboard interrupt
+  except KeyboardInterrupt:
+    setFanSpeed(FAN_OFF)
+    GPIO.cleanup() # resets all GPIO ports used by this function
 
 ############################################################################################
 #################################### Main program ##########################################
@@ -282,19 +311,26 @@ oskgildi_thread = threading.Thread(target=oskgildi_thread_func)
 styring_thread = threading.Thread(target=styring_thread_func)
 
 print("____Yfirfærslufall profun____")
-b = int(input("Hvaða duty cycle viltu profa?: "))
+b = int(input("Hvaða duty cycle viltu profa?"))
 print("Ath 1 lota er 5 sek þ.e. 12 lotur mæla í 60 sek")
 c = int(input("Hversu margar lotur viltu profa?: "))
-# print("Hversu mörg duty cycle viltu prófa?")
-# a = int(input("Fjöldi duty cylce: "))
-# while (True):   # Safety measure in case somebody puts "Fiskur" as the number of duty cycles
-#   try:
-#     while (int(a) < 1 ):
-#       print("Sláðu inn heila tölu sem er stærri en 0")
-#       a = int(input("Fjöldi duty cylce: "))
-#     break
-#   except ValueError as ex:
-#     print('%s\nCan not convert %s to int' % (ex, a))
+while (True):   # Safety measure in case somebody puts "Fiskur" as a number
+  try:
+    while (int(b) < 0 or int(b)>100 ):
+      print("Sláðu inn heila tölu á milli 0 og 100")
+      b = int(input("Hvaða duty cylce viltu prófa?"))
+    break
+  except ValueError as ex:
+    print('%s\nCan not convert %s to int' % (ex, b))
+while (True):   # Safety measure in case somebody puts "Fiskur" as a number
+  try:
+    while (int(b) < 1):
+      print("Sláðu inn heila tölu sem er stærri en 0")
+      c = int(input("Hversu margar lotur viltu prófa?"))
+    break
+  except ValueError as ex:
+    print('%s\nCan not convert %s to int' % (ex, c))
+
 
 # Búum til tóm fylki og vistum gildi í þau. Notaðu til að halda utan um gögn
 # Notum NumPy array til þess að geta vistað sem .csv og einfaldað vinnslu á gögnum
