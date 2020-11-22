@@ -314,6 +314,7 @@ print("____Yfirfærslufall profun____")
 b = int(input("Hvaða duty cycle viltu profa?"))
 print("Ath 1 lota er 5 sek þ.e. 12 lotur mæla í 60 sek")
 c = int(input("Hversu margar lotur viltu profa?: "))
+"""
 while (True):   # Safety measure in case somebody puts "Fiskur" as a number
   try:
     while (int(b) < 0 or int(b)>100 ):
@@ -330,7 +331,7 @@ while (True):   # Safety measure in case somebody puts "Fiskur" as a number
     break
   except ValueError as ex:
     print('%s\nCan not convert %s to int' % (ex, c))
-
+"""
 
 # Búum til tóm fylki og vistum gildi í þau. Notaðu til að halda utan um gögn
 # Notum NumPy array til þess að geta vistað sem .csv og einfaldað vinnslu á gögnum
