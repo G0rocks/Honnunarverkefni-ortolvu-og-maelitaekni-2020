@@ -1,3 +1,4 @@
+# coding=UTF-8
 """
 Hönnunarverkefni - Haust 2020
 Lokaverkefni í áfanganum Örtölvu og mælitækni við HÍ.
@@ -25,17 +26,21 @@ import board                        # Documentation: https://pypi.org/project/bo
 import adafruit_dht                 # Documentation: https://circuitpython.readthedocs.io/projects/dht/en/latest/#
 import matplotlib.pyplot as plt     # Documentation: https://matplotlib.org/api/pyplot_api.html
 # import termplotlib                  # Documentation: https://pypi.org/project/termplotlib/ # Athuga hvort hægt sé að setja termplotlib upp á raspberry pi áður en við notum
-#import threading                    # Documentation: https://docs.python.org/3/library/threading.html # Getum vonandi notað tvo threada til að láta annan þeirra stjórna óskgildinu og hinn vera stýringin okkar
-#from threading import thread
+import threading                    # Documentation: https://docs.python.org/3/library/threading.html # Getum vonandi notað tvo threada til að láta annan þeirra stjórna óskgildinu og hinn vera stýringin okkar
+from threading import Thread        # Maður þarf að importa með "pip3 install thread6"
 import numpy as np                  # Documentation: https://numpy.org/doc/
 ############ Config ##################
+# Set project to active
+projectIsActive = True        # When this value becomes False the run is over and we end the threads, save and exit the program
+
 # GPIO setup
 GPIO.setwarnings(False)       # Disable warnings about pin configuration being something other than the default
 GPIO.setmode(GPIO.BCM)        # Use Broadcom pinout
 
 # Data config
-gogn = np.empty((0,4), int)   # Býr til gagnatöflu með 4 dálkum sem tekur bara við int gildum. Dálkar: [timi,hitastig,duty_cycle,tach_hall_rpm]
-maxDeltaT = 0.1     # Hámarks hitamismunur á seinustu mælingu og mælingunni sem var fyrir 10 mælingum til að við skilgreinum okkur við jafnvægi
+gogn = np.empty((0,6), int)   # Býr til gagnatöflu með 6 dálkum sem tekur bara við int gildum. Dálkar: [timi,hitastig,duty_cycle,tach_hall_rpm, rakastig, heater_is_on]
+maxDeltaT = 1.0     # Hámarks hitamismunur á seinustu mælingu og mælingunni sem var fyrir 10 mælingum til að við skilgreinum okkur við jafnvægi
+oskgildi = 20       # Óskgildið sem stýringin reynir að ná. Skilgreint við herbergishitastig og er sett upp síðar.
 
 # Fan config
 FAN_GPIO_PIN = 20       # BCM pin used to drive PWM fan
@@ -46,6 +51,7 @@ TACH_GPIO_PIN = 21      # BCM pin for reading the tachometer
 tach_count_time = 2          # seconds for counting sensor changes
 fan_is_on = False       # Boolean variable. False if fan is off and True if fan is on
 FAN_OFF=PWM_OFF         # If no relay connection, this sets the fan speed to the lowest setting (230 RPM - https://www.arctic.ac/en/F12-PWM/AFACO-120P2-GBA01). If relay connection, use the relay to cut the power to the fan to turn it off.
+last_duty_cycle = 0     # Used to know what the last duty cycle set was in order to input the value to gogn
 # Setting up relay for FAN
 RELAY_FAN_GPIO_PIN = 26         # BCM pin used to turn RELAY for FAN ON/OFF
 GPIO.setup(RELAY_FAN_GPIO_PIN, GPIO.OUT, initial=GPIO.HIGH) # HIGH MEANS RELAY IS OFF
@@ -72,13 +78,57 @@ rakastig = 0 # breyta til að fylgjast með rakastigi
 deltaH = 0 # Breyta til að fylgjast með breytingu á rakastigi (e. humidity)
 
 ############ Define functions ##################
+def castAsInt(a):
+  """
+  Function takes in value a and attempts to cast it as int, returns "null" if it fails
+  """
+  try:
+    return int(a)
+  except:
+    return "null"
+
+def inputDutyCycle():
+  """
+  Biður notanda um input sem uppfyllir skilyrði til að vera notað sem duty cycle. Skilar int gildi á milli 0 og 100 bæði mörk tekin með
+  """
+  b = input("Hvaða duty cycle viltu prófa?")
+  b = castAsInt(b)
+  while (True):   # Safety measure in case somebody puts "Fiskur" as a number
+    try:
+      while (b == "null" or (castAsInt(b) < 0 or castAsInt(b)>100)):
+        print("Sláðu inn heila tölu á milli 0 og 100")
+        b = castAsInt(input("Hvaða duty cylce viltu prófa?"))
+      break
+    except ValueError as ex:
+      print('%s\nCan not convert %s to int' % (ex, b))
+  return b
+
+def inputLotuFjoldi():
+  """
+  Biður notanda um fjölda lota til að prófa. Skilar int tölu sem er 0 eða stærri
+  """
+  print("Ath 1 lota er 5 sek þ.e. 12 lotur mæla í 60 sek")
+  c = input("Hversu margar lotur viltu profa?: ")
+  c = castAsInt(c)
+  while (True):   # Safety measure in case somebody puts "Fiskur" as a number
+    try:
+      while (c == "null" or castAsInt(c) < 0):
+        print("Sláðu inn heila tölu sem er stærri en 0")
+        c = castAsInt(input("Hversu margar lotur viltu prófa?"))
+      break
+    except ValueError as ex:
+      print('%s\nCan not convert %s to int' % (ex, c))
+  return c
+
 def setFanSpeed(PWM_duty_cycle):
   """
   Sets fan speed to PWM_duty_cycle. Must be between 0 and 100 (both 0 and 100 included)
   """
   global fan_is_on
+  global last_duty_cycle
   if fan_is_on:
     fan.start(PWM_duty_cycle)    # set the speed according to the PWM duty cycle
+    last_duty_cycle = PWM_duty_cycle
   else:
     print("Turn the fan on first")
   return()
@@ -192,61 +242,174 @@ def elapsedTime(UpphafsTimi):
   Time = nowTimi-UpphafsTimi
   return Time
 
-def is_in_equilibrium(gogn):
+def is_in_equilibrium(gogn, numCol):
   """
-  Athugar hvort að hitamismunur á seinustu mælingu og mælingunni sem var 10 mælingum fyrr sé nógu lítið til að hægt sé að tala um að kerfið sé komið í jafnvægi. Skilar True ef jafnvægi og False ef ekki jafnvægi
+  Tekur inn numpy array gogn og númer dálks numCol sem inniheldur hitastigsmælingar. Athugar hvort að hitamismunur á seinustu mælingu og mælingunni sem var 10 mælingum fyrr sé nógu lítið til að hægt sé að tala um að kerfið sé komið í jafnvægi. Skilar True ef jafnvægi og False ef ekki jafnvægi.
   """
   global maxDeltaT
   numRows = gogn.shape[0]
-  if numRows<11:
-    T1 = gogn[0][1]
+  if numRows<12:
+    T1 = gogn[0][numCol]
   else:
-    T1 = gogn[numRows-11][1]
-  T2 = gogn[numRows-1][1]
+    T1 = gogn[numRows-11][numCol]
+  T2 = gogn[numRows-1][numCol]
   deltaT = T2-T1
-  if deltaT <=maxDeltaT:
+  print("DeltaT: {:.3f}".format(deltaT))
+  print("maxDeltaT: {:.3f}".format(maxDeltaT))
+  if (abs(deltaT) <= maxDeltaT):
     return True
   else:
     return False
 
-def measureAllez(hradi,fjoldi):
+def get_RPM():
+      """
+  Fall sem skilar RPM viftu sem float
+  """
+  return float(tach_count(tach_count_time,TACH_GPIO_PIN))/tach_count_time/2/2*60
+
+def measureAllez(duty_cycle,fjoldi):
   """
   Tekur inn gildi fyrir hvaða duty-cycle viftan á að vera á og hversu margar lotur á að mæla og framkvæmir þann fjölda mælinga á þessu tiltekna duty-cycle
-  """
+  """ 
   counter = 0
   global gogn
+  global STARTTIME
+  global heater_is_on
   while (counter < fjoldi): # User input akveður fjölda lota
-    duty_cycle = hradi
     setFanSpeed(duty_cycle) # viftuhraði settur í gildi sem var slegið inn í upphafi
-    hitastig = measureTemp() 
-    timi = elapsedTime(startTime)
-    tach_hall_rpm = float(tach_count(tach_count_time,TACH_GPIO_PIN))/tach_count_time/2/2*60
-    gogn = np.append(gogn, np.array([[timi,hitastig,duty_cycle,tach_hall_rpm]]), axis=0)
-    print("Hitastig: {:.2f}°C    Timi: {:.2f}     RPM: {:.2f} RPM    Duty cycle: {:.2f}%"
-      .format(hitastig,timi,tach_hall_rpm,duty_cycle))
-    time.sleep(5)
-    counter += 1
-    np.savetxt('nidurstodur.csv', gogn, delimiter=',', fmt='%d')
+    hitastig = measureTemp()
+    rakastig = measureHum()
+    if hitastig != -1:
+      timi = elapsedTime(STARTTIME)
+      tach_hall_rpm = get_RPM()
+      if heater_is_on:
+        local_heater_is_on = 1
+        print_local_heater_is_on = "on"
+      else:
+        local_heater_is_on = 0
+        print_local_heater_is_on = "off"
+      gogn = np.append(gogn, np.array([[timi,hitastig,duty_cycle,tach_hall_rpm, rakastig, local_heater_is_on]]), axis=0)
+      print("Timi: {:.2f}    Hitastig: {:.2f}°C    Duty cycle: {:.2f}%    RPM: {:.2f}    rakastig: {:.2f}%    Hitari (1 = on, 0 = off): {}"
+        .format(timi, hitastig, duty_cycle, tach_hall_rpm, rakastig, print_local_heater_is_on))
+      time.sleep(5)
+      counter += 1
+      np.savetxt('nidurstodur.csv', gogn, delimiter=',', fmt='%d')
+
+def measureAllData():
+  """
+  Mælir/athugar [Tími, hitastig, duty_cycle,tach_hall_rpm, rakastig, heater_is_on] og setur inn í gogn fylkið í þessari röð.
+  """
+  global gogn
+  global STARTTIME
+  timi = elapsedTime(STARTTIME)
+  hitastig = measureTemp()
+  global last_duty_cycle
+  global fan_is_on
+  if fan_is_on:
+    local_duty_cycle = last_duty_cycle
+  else:
+    local_duty_cycle = 0
+  tach_hall_rpm = get_RPM()
+  rakastig = measureHum()
+  global heater_is_on
+  if heater_is_on:
+    local_heater_is_on = 1
+  else:
+    local_heater_is_on = 0
+  gogn = np.append(gogn, np.array([[timi,hitastig,local_duty_cycle,tach_hall_rpm, rakastig, local_heater_is_on]]), axis=0)
+
+def oskgildi_setup():
+  """
+  Fall sem gerir mælingar á 10% og 90% duty cycle og finnur hitastig sem er miðgildið og skilar því
+  """
+  print("Set upp upphafsóskgildi")
+  global oskgildi
+  gogn_local = np.empty((0,1), int)
+  try:
+    fanOn()
+    setFanSpeed(10)
+    sleep(2)
+    hitastig = measureTemp()
+    gogn_local = np.append(gogn_local, np.array([[hitastig]]), axis=0)
+    while (is_in_equilibrium(gogn_local, 0)):
+      hitastig = measureTemp()
+      if hitastig != -1:
+        gogn_local = np.append(gogn_local, np.array([[hitastig]]), axis=0)
+        sleep(2)
+        print("gogn_local: \n", gogn_local)
+    T1 = gogn_local[gogn_local.shape[0]-1][0]
+    print("T1: ", T1)
+    setFanSpeed(90)
+    sleep(5)
+    while (is_in_equilibrium(gogn_local, 0)):
+      hitastig = measureTemp()
+      if hitastig != -1:
+        gogn_local = np.append(gogn_local, np.array([[hitastig]]), axis=0)
+        sleep(2)
+    T2 = gogn_local[gogn_local.shape[0]-1][0]
+    print("T2: ", T2)
+    oskgildi = (T1+T2)/2
+    print("upphafsóskgildi: ", oskgildi)
+  # trap a CTRL+C keyboard interrupt
+  except KeyboardInterrupt:
+    setFanSpeed(FAN_OFF)
+    GPIO.cleanup() # resets all GPIO ports used by this function
+
+############################################################################################
+#################################### Threads ##########################################
+def oskgildi_thread_func():
+  """
+  Þráður sem sér um að stjórna óskgildinu eins og notandi. Byrjar þegar
+  """
+  global projectIsActive
+  global oskgildi
+  try:
+    # Thread starts when 
+    projectIsActive = False
+    # trap a CTRL+C keyboard interrupt
+  except KeyboardInterrupt:
+    setFanSpeed(FAN_OFF)
+    GPIO.cleanup() # resets all GPIO ports used by this function
+
+def styring_thread_func():
+  """
+  Þráður sem sér um að reyna að láta hitastigið sem neminn nemur fylgja óskgildinu.
+  """
+  global projectIsActive
+  global oskgildi
+  while(projectIsActive):
+    try:
+      # PID stýring - Módel
+      pass
+
+    # trap a CTRL+C keyboard interrupt
+    except KeyboardInterrupt:
+      setFanSpeed(FAN_OFF)
+      GPIO.cleanup() # resets all GPIO ports used by this function
+
+def Measure_thread_func():
+  """
+  Þráður sem mælir gögn endalaust og stingur inn í gogn fylkið á meðan projectIsActive breytan skilar True
+  """
+  global projectIsActive
+  while(projectIsActive):
+    measureAllData()
 
 ############################################################################################
 #################################### Main program ##########################################
+STARTTIME = time.time() #Stilla upphafstima
 UPPHAFSRAKASTIG = measureHum()
 UPPHAFSHITASTIG = measureTemp()
+oskgildi_setup()
+
+oskgildi_thread = threading.Thread(target=oskgildi_thread_func)
+styring_thread = threading.Thread(target=styring_thread_func)
+measure_thread = threading.Thread(target=Measure_thread_func)
 
 print("____Yfirfærslufall profun____")
-b = int(input("Hvaða duty cycle viltu profa?: "))
+b = inputDutyCycle()
 print("Ath 1 lota er 5 sek þ.e. 12 lotur mæla í 60 sek")
-c = int(input("Hversu margar lotur viltu profa?: "))
-# print("Hversu mörg duty cycle viltu prófa?")
-# a = int(input("Fjöldi duty cylce: "))
-# while (True):   # Safety measure in case somebody puts "Fiskur" as the number of duty cycles
-#   try:
-#     while (int(a) < 1 ):
-#       print("Sláðu inn heila tölu sem er stærri en 0")
-#       a = int(input("Fjöldi duty cylce: "))
-#     break
-#   except ValueError as ex:
-#     print('%s\nCan not convert %s to int' % (ex, a))
+c = inputLotuFjoldi()
 
 # Búum til tóm fylki og vistum gildi í þau. Notaðu til að halda utan um gögn
 # Notum NumPy array til þess að geta vistað sem .csv og einfaldað vinnslu á gögnum
@@ -257,23 +420,22 @@ counter = 0
 
 # Tökum mælingu og vistum gögn í nidurstodur.csv
 try :
-  startTime = time.time() #Stilla upphafstima
-  ######heaterOn()
-  ######fanOn()
+  heaterOn()
+  fanOn()
   measureAllez(b,c)
   print("True ef þetta virkaði:", is_in_equilibrium(gogn))
   ##### measureAllez(20,c)
   # Save 2D numpy array to csv file
  # np.savetxt('nidurstodur.csv', gogn, delimiter=',', fmt='%d') 
 # try :
-#   startTime = time.time() #Stilla upphafstima
+#   STARTTIME = time.time() #Stilla upphafstima
 #   heaterOn()
 #   fanOn()
   # while (counter < c): # User input akveður fjölda lota
   #   duty_cycle = b
   #   setFanSpeed(duty_cycle) # viftuhraði settur í gildi sem var slegið inn í upphafi
   #   hitastig = measureTemp() 
-  #   timi = elapsedTime(startTime)
+  #   timi = elapsedTime(STARTTIME)
   #   tach_hall_rpm = float(tach_count(tach_count_time,TACH_GPIO_PIN))/tach_count_time/2/2*60
   #   gogn = np.append(gogn, np.array([[timi,hitastig,duty_cycle,tach_hall_rpm]]), axis=0)
   #   print("Hitastig: {:.2f}°C    Timi: {:.2f}     RPM: {:.2f} RPM    Duty cycle: {:.2f}%"
@@ -288,22 +450,31 @@ except KeyboardInterrupt:
   setFanSpeed(FAN_OFF)
   GPIO.cleanup() # resets all GPIO ports used by this function
 
-# Gerum graf til þess að skoða niðurstöður
-# x = gogn[0:1] # geymir upplysingar um tima
-# heat = gogn[1:2]
-# duty = gogn[2:3]
-# rpm = gogn[3:4]
+"""
+Gerum graf til þess að skoða niðurstöður
+x = gogn[0:1] # geymir upplysingar um tima
+heat = gogn[1:2]
+duty = gogn[2:3]
+rpm = gogn[3:4]
+"""
 
-# fig, axs = plt.subplots(3)
-# fig.suptitle('Niðurstöður Mælinga')
-# axs[0].plot(x, rpm)
-# axs[0].set_title("Viftuhraði")
-# axs[1].plot(x, duty)
-# axs[1].set_title("Duty cycle")
-# axs[2].plot(x, heat)
-# axs[2].set_title("Hiti")
-# plt.legend()
-# plt.savefig('nstGraf.png')
+"""
+fig, axs = plt.subplots(3)
+fig.suptitle('Niðurstöður Mælinga')
+axs[0].plot(x, rpm)
+axs[0].set_title("Viftuhraði")
+axs[1].plot(x, duty)
+axs[1].set_title("Duty cycle")
+axs[2].plot(x, heat)
+axs[2].set_title("Hiti")
+plt.legend()
+plt.savefig('nstGraf.png')
+ """
+
+oskgildi_thread.start()
+measure_thread.start()
+styring_thread.start()
+
 
 # reset all GPIO ports used. Important in order to prevent accidental fire hazards
 fanOff()
