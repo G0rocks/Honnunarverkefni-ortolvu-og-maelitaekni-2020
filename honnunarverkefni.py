@@ -130,6 +130,7 @@ def setFanSpeed(PWM_duty_cycle):
     if PWM_duty_cycle<0: PWM_duty_cycle=0
     elif PWM_duty_cycle>100: PWM_duty_cycle=100
     fan.start(PWM_duty_cycle)    # set the speed according to the PWM duty cycle
+    print("Fan duty cycle: ", PWM_duty_cycle)
     last_duty_cycle = PWM_duty_cycle
   else:
     print("Turn the fan on first")
@@ -249,17 +250,19 @@ def is_in_equilibrium(gogn, numCol):
   global maxDeltaT
   numRows = gogn.shape[0]
   if numRows<12:
-    T1 = gogn[0][numCol]
-  else:
-    T1 = gogn[numRows-11][numCol]
-  T2 = gogn[numRows-1][numCol]
-  deltaT = T2-T1
-  print("DeltaT: {:.3f}".format(deltaT))
-  print("maxDeltaT: {:.3f}".format(maxDeltaT))
-  if (abs(deltaT) <= maxDeltaT):
-    return True
-  else:
     return False
+    # T1 = gogn[0][numCol]
+  else:
+    subgogn = gogn[(numRows-11):(numRows-1), numCol]
+    medaltal = np.average(subgogn)
+    T2 = gogn[numRows-1][numCol]
+    deltaT = T2-medaltal
+    print("DeltaT: {:.3f}".format(deltaT))
+    print("maxDeltaT: {:.3f}".format(maxDeltaT))
+    if (abs(deltaT) <= maxDeltaT):
+      return True
+    else:
+      return False
 
 def get_RPM():
   """
@@ -326,10 +329,11 @@ def oskgildi_setup():
   """
   print("Set upp upphafsóskgildi")
   global oskgildi
+  global gogn
   gogn_local = np.empty((0,1), float)
   try:
     heaterOn()
-    sleep(60)
+    sleep(20)
     fanOn()
     setFanSpeed(10)
     sleep(10)
@@ -343,8 +347,12 @@ def oskgildi_setup():
         # print("gogn_local: \n", gogn_local)
     T1 = gogn_local[gogn_local.shape[0]-1][0]
     print("T1: ", T1)
+    # Vista gogn_local
+    # 
+    # Reset gogn_local
+    gogn_local = np.empty((0,1), float)
     setFanSpeed(90)
-    sleep(10)
+    sleep(30)
     while (not(is_in_equilibrium(gogn_local, 0))):
       hitastig = measureTemp()
       if hitastig != -1:
@@ -363,14 +371,16 @@ def oskgildi_setup():
 #################################### Threads ##########################################
 def oskgildi_thread_func():
   """
-  Þráður sem sér um að stjórna óskgildinu eins og notandi. Byrjar þegar
+  Þráður sem sér um að stjórna óskgildinu eins og notandi. Byrjar þegar búið 
   """
   global projectIsActive
   global oskgildi
   try:
     # Thread starts when oskgildi_setup() has been run
+    while projectIsActive:
+      oskgildi = 50   # Liður 2 byrjar
 
-    projectIsActive = False   # Set to False when second part of exercise is over
+      projectIsActive = False   # Set to False when second part of exercise is over
     # trap a CTRL+C keyboard interrupt
   except KeyboardInterrupt:
     setFanSpeed(FAN_OFF)
@@ -413,7 +423,6 @@ measure_thread = threading.Thread(target=Measure_thread_func)
 
 print("____Yfirfærslufall profun____")
 b = inputDutyCycle()
-print("Ath 1 lota er 5 sek þ.e. 12 lotur mæla í 60 sek")
 c = inputLotuFjoldi()
 
 # Búum til tóm fylki og vistum gildi í þau. Notaðu til að halda utan um gögn
@@ -428,7 +437,7 @@ try :
   heaterOn()
   fanOn()
   measureAllez(b,c)
-  print("True ef þetta virkaði:", is_in_equilibrium(gogn))
+  print("True ef þetta virkaði:", is_in_equilibrium(gogn,1))
   ##### measureAllez(20,c)
   # Save 2D numpy array to csv file
  # np.savetxt('nidurstodur.csv', gogn, delimiter=',', fmt='%d') 
