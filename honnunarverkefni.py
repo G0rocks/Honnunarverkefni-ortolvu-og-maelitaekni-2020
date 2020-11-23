@@ -330,38 +330,41 @@ def oskgildi_setup():
   print("Set upp upphafsóskgildi")
   global oskgildi
   global gogn
-  gogn_local = np.empty((0,1), float)
+  gogn_local = np.empty((0,3), float)
   try:
     heaterOn()
     sleep(20)
     fanOn()
-    setFanSpeed(10)
+    local_duty_cycle = 10
+    setFanSpeed(local_duty_cycle)
     sleep(10)
     hitastig = measureTemp()
-    gogn_local = np.append(gogn_local, np.array([[hitastig]]), axis=0)
+    gogn_local = np.append(gogn_local, np.array([hitastig, elapsedTime(STARTTIME), duty_cycle]), axis=0)
     while (not(is_in_equilibrium(gogn_local, 0))):
       hitastig = measureTemp()
       if hitastig != -1:
-        gogn_local = np.append(gogn_local, np.array([[hitastig]]), axis=0)
+        gogn_local = np.append(gogn_local, np.array([hitastig, elapsedTime(STARTTIME), duty_cycle]), axis=0)
         sleep(2)
         # print("gogn_local: \n", gogn_local)
     T1 = gogn_local[gogn_local.shape[0]-1][0]
     print("T1: ", T1)
     # Vista gogn_local
-    # 
+    np.savetxt('oskgildi1.csv', gogn_local, delimiter=',', fmt='%d')
     # Reset gogn_local
     gogn_local = np.empty((0,1), float)
-    setFanSpeed(90)
+    local_duty_cycle = 90
+    setFanSpeed(local_duty_cycle)
     sleep(30)
     while (not(is_in_equilibrium(gogn_local, 0))):
       hitastig = measureTemp()
       if hitastig != -1:
-        gogn_local = np.append(gogn_local, np.array([[hitastig]]), axis=0)
+        gogn_local = np.append(gogn_local, np.array([hitastig, elapsedTime(STARTTIME), duty_cycle]), axis=0)
         sleep(2)
     T2 = gogn_local[gogn_local.shape[0]-1][0]
     print("T2: ", T2)
     oskgildi = (T1+T2)/2
     print("upphafsóskgildi: ", oskgildi)
+    np.savetxt('oskgildi2.csv', gogn_local, delimiter=',', fmt='%d')
   # trap a CTRL+C keyboard interrupt
   except KeyboardInterrupt:
     setFanSpeed(FAN_OFF)
