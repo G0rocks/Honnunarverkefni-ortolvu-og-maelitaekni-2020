@@ -209,7 +209,7 @@ def is_in_equilibrium(gogn):
   else:
     return False
 
-def measureAllez(hradi,fjoldi,gogn):
+def measureAllez(hradi,fjoldi):
   """
   Tekur inn gildi fyrir hvaða duty-cycle viftan á að vera á og hversu margar lotur á að mæla og framkvæmir þann fjölda mælinga á þessu tiltekna duty-cycle
   """
@@ -258,10 +258,11 @@ counter = 0
 # Tökum mælingu og vistum gögn í nidurstodur.csv
 try :
   startTime = time.time() #Stilla upphafstima
-  heaterOn()
-  fanOn()
+  ######heaterOn()
+  ######fanOn()
   measureAllez(b,c)
-  measureAllez(20,c)
+  print("True ef þetta virkaði:", is_in_equilibrium(gogn))
+  ##### measureAllez(20,c)
   # Save 2D numpy array to csv file
  # np.savetxt('nidurstodur.csv', gogn, delimiter=',', fmt='%d') 
 # try :
