@@ -74,6 +74,48 @@ rakastig = 0 # breyta til að fylgjast með rakastigi
 deltaH = 0 # Breyta til að fylgjast með breytingu á rakastigi (e. humidity)
 
 ############ Define functions ##################
+def castAsInt(a):
+  """
+  Function takes in value a and attempts to cast it as int, returns "null" if it fails
+  """
+  try:
+    return int(a)
+  except:
+    return "null"
+
+def inputDutyCycle():
+  """
+  Biður notanda um input sem uppfyllir skilyrði til að vera notað sem duty cycle. Skilar int gildi á milli 0 og 100 bæði mörk tekin með
+  """
+  b = input("Hvaða duty cycle viltu prófa?")
+  b = castAsInt(b)
+  while (True):   # Safety measure in case somebody puts "Fiskur" as a number
+    try:
+      while (b == "null" or (castAsInt(b) < 0 or castAsInt(b)>100)):
+        print("Sláðu inn heila tölu á milli 0 og 100")
+        b = castAsInt(input("Hvaða duty cylce viltu prófa?"))
+      break
+    except ValueError as ex:
+      print('%s\nCan not convert %s to int' % (ex, b))
+  return b
+
+def inputLotuFjoldi():
+  """
+  Biður notanda um fjölda lota til að prófa. Skilar int tölu sem er 0 eða stærri
+  """
+  print("Ath 1 lota er 5 sek þ.e. 12 lotur mæla í 60 sek")
+  c = input("Hversu margar lotur viltu profa?: ")
+  c = castAsInt(c)
+  while (True):   # Safety measure in case somebody puts "Fiskur" as a number
+    try:
+      while (c == "null" or castAsInt(c) < 0):
+        print("Sláðu inn heila tölu sem er stærri en 0")
+        c = castAsInt(input("Hversu margar lotur viltu prófa?"))
+      break
+    except ValueError as ex:
+      print('%s\nCan not convert %s to int' % (ex, c))
+  return c
+
 def setFanSpeed(PWM_duty_cycle):
   """
   Sets fan speed to PWM_duty_cycle. Must be between 0 and 100 (both 0 and 100 included)
@@ -311,27 +353,9 @@ oskgildi_thread = threading.Thread(target=oskgildi_thread_func)
 styring_thread = threading.Thread(target=styring_thread_func)
 
 print("____Yfirfærslufall profun____")
-b = int(input("Hvaða duty cycle viltu profa?"))
+b = inputDutyCycle()
 print("Ath 1 lota er 5 sek þ.e. 12 lotur mæla í 60 sek")
-c = int(input("Hversu margar lotur viltu profa?: "))
-"""
-while (True):   # Safety measure in case somebody puts "Fiskur" as a number
-  try:
-    while (int(b) < 0 or int(b)>100 ):
-      print("Sláðu inn heila tölu á milli 0 og 100")
-      b = int(input("Hvaða duty cylce viltu prófa?"))
-    break
-  except ValueError as ex:
-    print('%s\nCan not convert %s to int' % (ex, b))
-while (True):   # Safety measure in case somebody puts "Fiskur" as a number
-  try:
-    while (int(b) < 1):
-      print("Sláðu inn heila tölu sem er stærri en 0")
-      c = int(input("Hversu margar lotur viltu prófa?"))
-    break
-  except ValueError as ex:
-    print('%s\nCan not convert %s to int' % (ex, c))
-"""
+c = inputLotuFjoldi()
 
 # Búum til tóm fylki og vistum gildi í þau. Notaðu til að halda utan um gögn
 # Notum NumPy array til þess að geta vistað sem .csv og einfaldað vinnslu á gögnum
