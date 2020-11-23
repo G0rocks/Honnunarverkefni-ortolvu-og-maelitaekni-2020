@@ -39,7 +39,7 @@ GPIO.setmode(GPIO.BCM)        # Use Broadcom pinout
 
 # Data config
 gogn = np.empty((0,7), float)   # Býr til gagnatöflu með 7 dálkum sem tekur bara við int gildum. Dálkar: [timi,hitastig,duty_cycle,tach_hall_rpm, rakastig, heater_is_on, oskgildi]
-maxDeltaT = 1.0     # Hámarks hitamismunur á seinustu mælingu og mælingunni sem var fyrir 10 mælingum til að við skilgreinum okkur við jafnvægi
+maxDeltaT = 0.2     # Hámarks hitamismunur á seinustu mælingu og mælingunni sem var fyrir 10 mælingum til að við skilgreinum okkur við jafnvægi
 oskgildi = 20       # Óskgildið sem stýringin reynir að ná. Skilgreint við herbergishitastig og er sett upp síðar.
 
 # Fan config
@@ -201,7 +201,7 @@ def measureTemp():
   keepGoing = True
   loopCounter = 0
   hitastig = -1
-  while (keepGoing and loopCounter < 5):
+  while (keepGoing):
     try: 
       hitastig = dhtDevice.temperature
       keepGoing = False
@@ -212,7 +212,6 @@ def measureTemp():
     except Exception as error:
         dhtDevice.exit()
         raise error
-    loopCounter += 1
   return (hitastig)
 
 def measureHum():
@@ -222,8 +221,8 @@ def measureHum():
   Hámark 5 sinnum, svo gefumst við upp.
   """
   keepGoing = True
-  loopCounter = 0
-  while (keepGoing and loopCounter < 5):
+  rakastig = 0
+  while (keepGoing):
     try: 
       rakastig = dhtDevice.humidity
       keepGoing = False
@@ -234,7 +233,6 @@ def measureHum():
     except Exception as error:
         dhtDevice.exit()
         raise error
-    loopCounter += 1
 
 def elapsedTime(UpphafsTimi):
   """
@@ -328,24 +326,26 @@ def oskgildi_setup():
   """
   print("Set upp upphafsóskgildi")
   global oskgildi
-  gogn_local = np.empty((0,1), int)
+  gogn_local = np.empty((0,1), float)
   try:
+    heaterOn()
+    sleep(60)
     fanOn()
     setFanSpeed(10)
-    sleep(2)
+    sleep(10)
     hitastig = measureTemp()
     gogn_local = np.append(gogn_local, np.array([[hitastig]]), axis=0)
-    while (is_in_equilibrium(gogn_local, 0)):
+    while (not(is_in_equilibrium(gogn_local, 0))):
       hitastig = measureTemp()
       if hitastig != -1:
         gogn_local = np.append(gogn_local, np.array([[hitastig]]), axis=0)
         sleep(2)
-        print("gogn_local: \n", gogn_local)
+        # print("gogn_local: \n", gogn_local)
     T1 = gogn_local[gogn_local.shape[0]-1][0]
     print("T1: ", T1)
     setFanSpeed(90)
-    sleep(5)
-    while (is_in_equilibrium(gogn_local, 0)):
+    sleep(10)
+    while (not(is_in_equilibrium(gogn_local, 0))):
       hitastig = measureTemp()
       if hitastig != -1:
         gogn_local = np.append(gogn_local, np.array([[hitastig]]), axis=0)
