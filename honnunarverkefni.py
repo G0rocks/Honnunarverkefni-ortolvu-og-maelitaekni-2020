@@ -339,11 +339,11 @@ def oskgildi_setup():
     setFanSpeed(local_duty_cycle)
     sleep(10)
     hitastig = measureTemp()
-    gogn_local = np.append(gogn_local, np.array([hitastig, elapsedTime(STARTTIME), duty_cycle]), axis=0)
+    gogn_local = np.append(gogn_local, np.array([hitastig, elapsedTime(STARTTIME), local_duty_cycle]), axis=0)
     while (not(is_in_equilibrium(gogn_local, 0))):
       hitastig = measureTemp()
       if hitastig != -1:
-        gogn_local = np.append(gogn_local, np.array([hitastig, elapsedTime(STARTTIME), duty_cycle]), axis=0)
+        gogn_local = np.append(gogn_local, np.array([hitastig, elapsedTime(STARTTIME), local_duty_cycle]), axis=0)
         sleep(2)
         # print("gogn_local: \n", gogn_local)
     T1 = gogn_local[gogn_local.shape[0]-1][0]
@@ -358,7 +358,7 @@ def oskgildi_setup():
     while (not(is_in_equilibrium(gogn_local, 0))):
       hitastig = measureTemp()
       if hitastig != -1:
-        gogn_local = np.append(gogn_local, np.array([hitastig, elapsedTime(STARTTIME), duty_cycle]), axis=0)
+        gogn_local = np.append(gogn_local, np.array([hitastig, elapsedTime(STARTTIME), local_duty_cycle]), axis=0)
         sleep(2)
     T2 = gogn_local[gogn_local.shape[0]-1][0]
     print("T2: ", T2)
