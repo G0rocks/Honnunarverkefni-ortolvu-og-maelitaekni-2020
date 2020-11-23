@@ -38,7 +38,7 @@ GPIO.setwarnings(False)       # Disable warnings about pin configuration being s
 GPIO.setmode(GPIO.BCM)        # Use Broadcom pinout
 
 # Data config
-gogn = np.empty((0,6), int)   # Býr til gagnatöflu með 6 dálkum sem tekur bara við int gildum. Dálkar: [timi,hitastig,duty_cycle,tach_hall_rpm, rakastig, heater_is_on]
+gogn = np.empty((0,7), float)   # Býr til gagnatöflu með 7 dálkum sem tekur bara við int gildum. Dálkar: [timi,hitastig,duty_cycle,tach_hall_rpm, rakastig, heater_is_on, oskgildi]
 maxDeltaT = 1.0     # Hámarks hitamismunur á seinustu mælingu og mælingunni sem var fyrir 10 mælingum til að við skilgreinum okkur við jafnvægi
 oskgildi = 20       # Óskgildið sem stýringin reynir að ná. Skilgreint við herbergishitastig og er sett upp síðar.
 
@@ -127,6 +127,8 @@ def setFanSpeed(PWM_duty_cycle):
   global fan_is_on
   global last_duty_cycle
   if fan_is_on:
+    if PWM_duty_cycle<0: PWM_duty_cycle=0
+    elif PWM_duty_cycle>100: PWM_duty_cycle=100
     fan.start(PWM_duty_cycle)    # set the speed according to the PWM duty cycle
     last_duty_cycle = PWM_duty_cycle
   else:
@@ -262,7 +264,7 @@ def is_in_equilibrium(gogn, numCol):
     return False
 
 def get_RPM():
-      """
+  """
   Fall sem skilar RPM viftu sem float
   """
   return float(tach_count(tach_count_time,TACH_GPIO_PIN))/tach_count_time/2/2*60
@@ -275,6 +277,7 @@ def measureAllez(duty_cycle,fjoldi):
   global gogn
   global STARTTIME
   global heater_is_on
+  global oskgildi
   while (counter < fjoldi): # User input akveður fjölda lota
     setFanSpeed(duty_cycle) # viftuhraði settur í gildi sem var slegið inn í upphafi
     hitastig = measureTemp()
@@ -288,16 +291,16 @@ def measureAllez(duty_cycle,fjoldi):
       else:
         local_heater_is_on = 0
         print_local_heater_is_on = "off"
-      gogn = np.append(gogn, np.array([[timi,hitastig,duty_cycle,tach_hall_rpm, rakastig, local_heater_is_on]]), axis=0)
-      print("Timi: {:.2f}    Hitastig: {:.2f}°C    Duty cycle: {:.2f}%    RPM: {:.2f}    rakastig: {:.2f}%    Hitari (1 = on, 0 = off): {}"
-        .format(timi, hitastig, duty_cycle, tach_hall_rpm, rakastig, print_local_heater_is_on))
+      gogn = np.append(gogn, np.array([[timi,hitastig,duty_cycle,tach_hall_rpm, rakastig, local_heater_is_on, oskgildi]]), axis=0)
+      print("Timi: {:.2f}    Hitastig: {:.2f}°C    Duty cycle: {:.2f}%    RPM: {:.2f}    rakastig: {:.2f}%    Hitari (1 = on, 0 = off): {}    Óskgildi: {:.2f}°C"
+        .format(timi, hitastig, duty_cycle, tach_hall_rpm, rakastig, print_local_heater_is_on, oskgildi))
       time.sleep(5)
       counter += 1
       np.savetxt('nidurstodur.csv', gogn, delimiter=',', fmt='%d')
 
 def measureAllData():
   """
-  Mælir/athugar [Tími, hitastig, duty_cycle,tach_hall_rpm, rakastig, heater_is_on] og setur inn í gogn fylkið í þessari röð.
+  Mælir/athugar [Tími, hitastig, duty_cycle,tach_hall_rpm, rakastig, heater_is_on, oskgildi] og setur inn í gogn fylkið í þessari röð.
   """
   global gogn
   global STARTTIME
@@ -316,7 +319,8 @@ def measureAllData():
     local_heater_is_on = 1
   else:
     local_heater_is_on = 0
-  gogn = np.append(gogn, np.array([[timi,hitastig,local_duty_cycle,tach_hall_rpm, rakastig, local_heater_is_on]]), axis=0)
+  global oskgildi
+  gogn = np.append(gogn, np.array([[timi,hitastig,local_duty_cycle,tach_hall_rpm, rakastig, local_heater_is_on, oskgildi]]), axis=0)
 
 def oskgildi_setup():
   """
@@ -364,8 +368,9 @@ def oskgildi_thread_func():
   global projectIsActive
   global oskgildi
   try:
-    # Thread starts when 
-    projectIsActive = False
+    # Thread starts when oskgildi_setup() has been run
+
+    projectIsActive = False   # Set to False when second part of exercise is over
     # trap a CTRL+C keyboard interrupt
   except KeyboardInterrupt:
     setFanSpeed(FAN_OFF)
