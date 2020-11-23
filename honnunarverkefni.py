@@ -30,12 +30,15 @@ import threading                    # Documentation: https://docs.python.org/3/l
 from threading import Thread        # Maður þarf að importa með "pip3 install thread6"
 import numpy as np                  # Documentation: https://numpy.org/doc/
 ############ Config ##################
+# Set project to active
+projectIsActive = True        # When this value becomes False the run is over and we end the threads, save and exit the program
+
 # GPIO setup
 GPIO.setwarnings(False)       # Disable warnings about pin configuration being something other than the default
 GPIO.setmode(GPIO.BCM)        # Use Broadcom pinout
 
 # Data config
-gogn = np.empty((0,4), int)   # Býr til gagnatöflu með 4 dálkum sem tekur bara við int gildum. Dálkar: [timi,hitastig,duty_cycle,tach_hall_rpm]
+gogn = np.empty((0,6), int)   # Býr til gagnatöflu með 6 dálkum sem tekur bara við int gildum. Dálkar: [timi,hitastig,duty_cycle,tach_hall_rpm, rakastig, heater_is_on]
 maxDeltaT = 1.0     # Hámarks hitamismunur á seinustu mælingu og mælingunni sem var fyrir 10 mælingum til að við skilgreinum okkur við jafnvægi
 oskgildi = 20       # Óskgildið sem stýringin reynir að ná. Skilgreint við herbergishitastig og er sett upp síðar.
 
@@ -48,6 +51,7 @@ TACH_GPIO_PIN = 21      # BCM pin for reading the tachometer
 tach_count_time = 2          # seconds for counting sensor changes
 fan_is_on = False       # Boolean variable. False if fan is off and True if fan is on
 FAN_OFF=PWM_OFF         # If no relay connection, this sets the fan speed to the lowest setting (230 RPM - https://www.arctic.ac/en/F12-PWM/AFACO-120P2-GBA01). If relay connection, use the relay to cut the power to the fan to turn it off.
+last_duty_cycle = 0     # Used to know what the last duty cycle set was in order to input the value to gogn
 # Setting up relay for FAN
 RELAY_FAN_GPIO_PIN = 26         # BCM pin used to turn RELAY for FAN ON/OFF
 GPIO.setup(RELAY_FAN_GPIO_PIN, GPIO.OUT, initial=GPIO.HIGH) # HIGH MEANS RELAY IS OFF
@@ -121,8 +125,10 @@ def setFanSpeed(PWM_duty_cycle):
   Sets fan speed to PWM_duty_cycle. Must be between 0 and 100 (both 0 and 100 included)
   """
   global fan_is_on
+  global last_duty_cycle
   if fan_is_on:
     fan.start(PWM_duty_cycle)    # set the speed according to the PWM duty cycle
+    last_duty_cycle = PWM_duty_cycle
   else:
     print("Turn the fan on first")
   return()
@@ -267,18 +273,50 @@ def measureAllez(duty_cycle,fjoldi):
   """ 
   counter = 0
   global gogn
+  global STARTTIME
+  global heater_is_on
   while (counter < fjoldi): # User input akveður fjölda lota
     setFanSpeed(duty_cycle) # viftuhraði settur í gildi sem var slegið inn í upphafi
     hitastig = measureTemp()
+    rakastig = measureHum()
     if hitastig != -1:
-      timi = elapsedTime(startTime)
+      timi = elapsedTime(STARTTIME)
       tach_hall_rpm = get_RPM()
-      gogn = np.append(gogn, np.array([[timi,hitastig,duty_cycle,tach_hall_rpm]]), axis=0)
-      print("Hitastig: {:.2f}°C    Timi: {:.2f}     RPM: {:.2f} RPM    Duty cycle: {:.2f}%"
-        .format(hitastig,timi,tach_hall_rpm,duty_cycle))
+      if heater_is_on:
+        local_heater_is_on = 1
+        print_local_heater_is_on = "on"
+      else:
+        local_heater_is_on = 0
+        print_local_heater_is_on = "off"
+      gogn = np.append(gogn, np.array([[timi,hitastig,duty_cycle,tach_hall_rpm, rakastig, local_heater_is_on]]), axis=0)
+      print("Timi: {:.2f}    Hitastig: {:.2f}°C    Duty cycle: {:.2f}%    RPM: {:.2f}    rakastig: {:.2f}%    Hitari (1 = on, 0 = off): {}"
+        .format(timi, hitastig, duty_cycle, tach_hall_rpm, rakastig, print_local_heater_is_on))
       time.sleep(5)
       counter += 1
       np.savetxt('nidurstodur.csv', gogn, delimiter=',', fmt='%d')
+
+def measureAllData():
+  """
+  Mælir/athugar [Tími, hitastig, duty_cycle,tach_hall_rpm, rakastig, heater_is_on] og setur inn í gogn fylkið í þessari röð.
+  """
+  global gogn
+  global STARTTIME
+  timi = elapsedTime(STARTTIME)
+  hitastig = measureTemp()
+  global last_duty_cycle
+  global fan_is_on
+  if fan_is_on:
+    local_duty_cycle = last_duty_cycle
+  else:
+    local_duty_cycle = 0
+  tach_hall_rpm = get_RPM()
+  rakastig = measureHum()
+  global heater_is_on
+  if heater_is_on:
+    local_heater_is_on = 1
+  else:
+    local_heater_is_on = 0
+  gogn = np.append(gogn, np.array([[timi,hitastig,local_duty_cycle,tach_hall_rpm, rakastig, local_heater_is_on]]), axis=0)
 
 def oskgildi_setup():
   """
@@ -321,12 +359,14 @@ def oskgildi_setup():
 #################################### Threads ##########################################
 def oskgildi_thread_func():
   """
-  Þráður sem sér um að stjórna óskgildinu eins og notandi.
+  Þráður sem sér um að stjórna óskgildinu eins og notandi. Byrjar þegar
   """
+  global projectIsActive
   global oskgildi
   try:
-    pass
-  # trap a CTRL+C keyboard interrupt
+    # Thread starts when 
+    projectIsActive = False
+    # trap a CTRL+C keyboard interrupt
   except KeyboardInterrupt:
     setFanSpeed(FAN_OFF)
     GPIO.cleanup() # resets all GPIO ports used by this function
@@ -335,22 +375,36 @@ def styring_thread_func():
   """
   Þráður sem sér um að reyna að láta hitastigið sem neminn nemur fylgja óskgildinu.
   """
+  global projectIsActive
   global oskgildi
-  try:
-    pass
-  # trap a CTRL+C keyboard interrupt
-  except KeyboardInterrupt:
-    setFanSpeed(FAN_OFF)
-    GPIO.cleanup() # resets all GPIO ports used by this function
+  while(projectIsActive):
+    try:
+      # PID stýring - Módel
+      pass
+
+    # trap a CTRL+C keyboard interrupt
+    except KeyboardInterrupt:
+      setFanSpeed(FAN_OFF)
+      GPIO.cleanup() # resets all GPIO ports used by this function
+
+def Measure_thread_func():
+  """
+  Þráður sem mælir gögn endalaust og stingur inn í gogn fylkið á meðan projectIsActive breytan skilar True
+  """
+  global projectIsActive
+  while(projectIsActive):
+    measureAllData()
 
 ############################################################################################
 #################################### Main program ##########################################
+STARTTIME = time.time() #Stilla upphafstima
 UPPHAFSRAKASTIG = measureHum()
 UPPHAFSHITASTIG = measureTemp()
 oskgildi_setup()
 
 oskgildi_thread = threading.Thread(target=oskgildi_thread_func)
 styring_thread = threading.Thread(target=styring_thread_func)
+measure_thread = threading.Thread(target=Measure_thread_func)
 
 print("____Yfirfærslufall profun____")
 b = inputDutyCycle()
@@ -366,7 +420,6 @@ counter = 0
 
 # Tökum mælingu og vistum gögn í nidurstodur.csv
 try :
-  startTime = time.time() #Stilla upphafstima
   heaterOn()
   fanOn()
   measureAllez(b,c)
@@ -374,14 +427,14 @@ try :
   # Save 2D numpy array to csv file
  # np.savetxt('nidurstodur.csv', gogn, delimiter=',', fmt='%d') 
 # try :
-#   startTime = time.time() #Stilla upphafstima
+#   STARTTIME = time.time() #Stilla upphafstima
 #   heaterOn()
 #   fanOn()
   # while (counter < c): # User input akveður fjölda lota
   #   duty_cycle = b
   #   setFanSpeed(duty_cycle) # viftuhraði settur í gildi sem var slegið inn í upphafi
   #   hitastig = measureTemp() 
-  #   timi = elapsedTime(startTime)
+  #   timi = elapsedTime(STARTTIME)
   #   tach_hall_rpm = float(tach_count(tach_count_time,TACH_GPIO_PIN))/tach_count_time/2/2*60
   #   gogn = np.append(gogn, np.array([[timi,hitastig,duty_cycle,tach_hall_rpm]]), axis=0)
   #   print("Hitastig: {:.2f}°C    Timi: {:.2f}     RPM: {:.2f} RPM    Duty cycle: {:.2f}%"
@@ -396,24 +449,29 @@ except KeyboardInterrupt:
   setFanSpeed(FAN_OFF)
   GPIO.cleanup() # resets all GPIO ports used by this function
 
-# Gerum graf til þess að skoða niðurstöður
-# x = gogn[0:1] # geymir upplysingar um tima
-# heat = gogn[1:2]
-# duty = gogn[2:3]
-# rpm = gogn[3:4]
+"""
+Gerum graf til þess að skoða niðurstöður
+x = gogn[0:1] # geymir upplysingar um tima
+heat = gogn[1:2]
+duty = gogn[2:3]
+rpm = gogn[3:4]
+"""
 
-# fig, axs = plt.subplots(3)
-# fig.suptitle('Niðurstöður Mælinga')
-# axs[0].plot(x, rpm)
-# axs[0].set_title("Viftuhraði")
-# axs[1].plot(x, duty)
-# axs[1].set_title("Duty cycle")
-# axs[2].plot(x, heat)
-# axs[2].set_title("Hiti")
-# plt.legend()
-# plt.savefig('nstGraf.png')
+"""
+fig, axs = plt.subplots(3)
+fig.suptitle('Niðurstöður Mælinga')
+axs[0].plot(x, rpm)
+axs[0].set_title("Viftuhraði")
+axs[1].plot(x, duty)
+axs[1].set_title("Duty cycle")
+axs[2].plot(x, heat)
+axs[2].set_title("Hiti")
+plt.legend()
+plt.savefig('nstGraf.png')
+ """
 
 oskgildi_thread.start()
+measure_thread.start()
 styring_thread.start()
 
 
