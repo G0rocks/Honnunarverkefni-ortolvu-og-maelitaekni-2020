@@ -38,7 +38,7 @@ GPIO.setwarnings(False)       # Disable warnings about pin configuration being s
 GPIO.setmode(GPIO.BCM)        # Use Broadcom pinout
 
 # Data config
-gogn = np.empty((0,6), int)   # Býr til gagnatöflu með 6 dálkum sem tekur bara við int gildum. Dálkar: [timi,hitastig,duty_cycle,tach_hall_rpm, rakastig, heater_is_on]
+gogn = np.empty((0,6), float)   # Býr til gagnatöflu með 6 dálkum sem tekur bara við int gildum. Dálkar: [timi,hitastig,duty_cycle,tach_hall_rpm, rakastig, heater_is_on]
 maxDeltaT = 1.0     # Hámarks hitamismunur á seinustu mælingu og mælingunni sem var fyrir 10 mælingum til að við skilgreinum okkur við jafnvægi
 oskgildi = 20       # Óskgildið sem stýringin reynir að ná. Skilgreint við herbergishitastig og er sett upp síðar.
 
@@ -262,7 +262,7 @@ def is_in_equilibrium(gogn, numCol):
     return False
 
 def get_RPM():
-      """
+  """
   Fall sem skilar RPM viftu sem float
   """
   return float(tach_count(tach_count_time,TACH_GPIO_PIN))/tach_count_time/2/2*60
