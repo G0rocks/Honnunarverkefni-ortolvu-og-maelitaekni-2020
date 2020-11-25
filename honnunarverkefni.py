@@ -27,8 +27,9 @@ import adafruit_dht                 # Documentation: https://circuitpython.readt
 import matplotlib.pyplot as plt     # Documentation: https://matplotlib.org/api/pyplot_api.html
 # import termplotlib                  # Documentation: https://pypi.org/project/termplotlib/ # Athuga hvort hægt sé að setja termplotlib upp á raspberry pi áður en við notum
 import threading                    # Documentation: https://docs.python.org/3/library/threading.html # Getum vonandi notað tvo threada til að láta annan þeirra stjórna óskgildinu og hinn vera stýringin okkar
-from threading import Thread        # Maður þarf að importa með "pip3 install thread6"
+from threading import Thread, local        # Maður þarf að importa með "pip3 install thread6"
 import numpy as np                  # Documentation: https://numpy.org/doc/
+
 ############ Config ##################
 # Set project to active
 projectIsActive = True        # When this value becomes False the run is over and we end the threads, save and exit the program
@@ -41,6 +42,7 @@ GPIO.setmode(GPIO.BCM)        # Use Broadcom pinout
 gogn = np.empty((0,7), float)   # Býr til gagnatöflu með 7 dálkum sem tekur bara við int gildum. Dálkar: [timi,hitastig,duty_cycle,tach_hall_rpm, rakastig, heater_is_on, oskgildi]
 maxDeltaT = 0.2     # Hámarks hitamismunur á seinustu mælingu og mælingunni sem var fyrir 10 mælingum til að við skilgreinum okkur við jafnvægi
 oskgildi = 20       # Óskgildið sem stýringin reynir að ná. Skilgreint við herbergishitastig og er sett upp síðar.
+
 
 # Fan config
 FAN_GPIO_PIN = 20       # BCM pin used to drive PWM fan
@@ -365,6 +367,7 @@ def oskgildi_setup():
     oskgildi = (T1+T2)/2
     print("upphafsóskgildi: ", oskgildi)
     np.savetxt('oskgildi2.csv', gogn_local, delimiter=',', fmt='%d')
+    return oskgildi
   # trap a CTRL+C keyboard interrupt
   except KeyboardInterrupt:
     setFanSpeed(FAN_OFF)
@@ -378,14 +381,53 @@ def oskgildi_thread_func():
   """
   global projectIsActive
   global oskgildi
+  global UPPHAFSOSKGILDI
+  oskgildi = UPPHAFSOSKGILDI
   try:
     # Thread starts when oskgildi_setup() has been run
+    # Liður 1
+    # Ná jafnvægi í UPPHAFSOSKGILDI
     while projectIsActive:
-      oskgildi = 50   # Liður 2 byrjar
+      if is_in_equilibrium():
+        break
+      sleep(sensor_cache_clear_time)
 
-      projectIsActive = False   # Set to False when second part of exercise is over
-    # trap a CTRL+C keyboard interrupt
+      # Liður 2
+    oskgildi = 50
+    # Ná jafnvægi í 50°C
+    while projectIsActive:
+      if is_in_equilibrium():
+        break
+      sleep(sensor_cache_clear_time)
+    # Vaxa línulega frá 50°C upp í 60°C á 30 sek
+    local_start_time = time.time()
+    while projectIsActive and (time.time() - local_start_time) < 30:
+      oskgildi = oskgildi+1/30
+      if oskgildi <= 60:
+        break
+      sleep(0.1)
+    oskgildi = 60     # Til öryggis ef það var ekki akkúrat 60°C
+    # Halda óskgildi óbreyttu í 30 sek
+    sleep(30)
+    # Lækka óskgildi línulega frá 60°C niður í 40°C á 30 sek
+    local_start_time = time.time()
+    while projectIsActive and (time.time() - local_start_time) < 30:
+      oskgildi = oskgildi-2/30
+      if oskgildi >= 40:
+        break
+      sleep(0.1)
+    oskgildi = 40   # Til öryggis ef það var ekki akkúrat 40°C
+    # Ná jafnvægi í 40°C
+    while projectIsActive:
+      if is_in_equilibrium():
+        break
+    sleep(sensor_cache_clear_time)
+
+    projectIsActive = False   # Set to False when second part of exercise is over
+
+  # trap a CTRL+C keyboard interrupt
   except KeyboardInterrupt:
+    projectIsActive = False # Stöðva verkefnið
     setFanSpeed(FAN_OFF)
     GPIO.cleanup() # resets all GPIO ports used by this function
 
@@ -418,7 +460,7 @@ def Measure_thread_func():
 STARTTIME = time.time() #Stilla upphafstima
 UPPHAFSRAKASTIG = measureHum()
 UPPHAFSHITASTIG = measureTemp()
-oskgildi_setup()
+UPPHAFSOSKGILDI = oskgildi_setup()
 
 oskgildi_thread = threading.Thread(target=oskgildi_thread_func)
 styring_thread = threading.Thread(target=styring_thread_func)
