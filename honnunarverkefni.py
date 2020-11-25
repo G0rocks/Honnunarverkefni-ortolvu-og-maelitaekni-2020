@@ -401,7 +401,7 @@ def oskgildi_thread_func():
       sleep(sensor_cache_clear_time)
     # Vaxa línulega frá 50°C upp í 60°C á 30 sek
     local_start_time = time.time()
-    while projectIsActive and (time.time() - local_start_time) < 30:
+    while projectIsActive and elapsedTime(local_start_time) < 30:
       oskgildi = oskgildi+1/30
       if oskgildi <= 60:
         break
@@ -411,7 +411,7 @@ def oskgildi_thread_func():
     sleep(30)
     # Lækka óskgildi línulega frá 60°C niður í 40°C á 30 sek
     local_start_time = time.time()
-    while projectIsActive and (time.time() - local_start_time) < 30:
+    while projectIsActive and elapsedTime(local_start_time) < 30:
       oskgildi = oskgildi-2/30
       if oskgildi >= 40:
         break
