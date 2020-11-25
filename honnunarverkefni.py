@@ -388,7 +388,7 @@ def oskgildi_thread_func():
     # Liður 1
     # Ná jafnvægi í UPPHAFSOSKGILDI
     while projectIsActive:
-      if is_in_equilibrium():
+      if is_in_equilibrium(gogn, 1):
         break
       sleep(sensor_cache_clear_time)
 
@@ -396,7 +396,7 @@ def oskgildi_thread_func():
     oskgildi = 50
     # Ná jafnvægi í 50°C
     while projectIsActive:
-      if is_in_equilibrium():
+      if is_in_equilibrium(gogn, 1):
         break
       sleep(sensor_cache_clear_time)
     # Vaxa línulega frá 50°C upp í 60°C á 30 sek
