@@ -54,10 +54,11 @@ try:
 
     while (counter < 10):
       if ((counter%2)==0):
-        fc.setFanSpeed(90)
+        duty_cycle = 90
       else:
-        fc.setFanSpeed(10)
+        duty_cycle = 10
 
+      fc.setFanSpeed(duty_cycle)
       loopTime = time.time()
       nuna = loopTime
       while (not(equil and ((nuna-loopTime) > 20))):
