@@ -42,7 +42,7 @@ try:
     #-------- Prófun á föstu duty cycle ---------#
     cycles = np.array([0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100])
     duty_cycle = 0
-    maxDeltaT = 0.2
+    maxDeltaT = 0.1
     
     fc.heaterOn()
     heater_on = True
@@ -59,7 +59,7 @@ try:
     counter = 0
     startTime = time.time() #Stilla upphafstima
 
-    while (counter < 9):
+    while (counter < 11):
       print('umferð: ', counter)
       if ((counter%2)==0):
         duty_cycle = 10
@@ -67,6 +67,7 @@ try:
         duty_cycle = 90
 
       fc.setFanSpeed(duty_cycle)
+      arr = np.empty((0,5), float)
       loopTime = time.time()
       nuna = loopTime
       counter_2 = 1
@@ -80,6 +81,8 @@ try:
         time.sleep(1)
       
       counter += 1
+      fileName = 'results_' + str(counter) + '.csv'
+      np.savetxt(fileName, arr, delimiter='; ', fmt='%.2f', header = head)
     
     """ while (counter < 11):
       if (counter == 0):
@@ -103,7 +106,7 @@ try:
 
       counter += 1 """
 
-    np.savetxt('nidurstodur.csv', arr, delimiter='; ', fmt='%.2f', header = head)
+    #np.savetxt('nidurstodur.csv', arr, delimiter='; ', fmt='%.2f', header = head)
 
 # trap a CTRL+C keyboard interrupt
 except KeyboardInterrupt:
