@@ -43,14 +43,35 @@ try:
     cycles = np.array([0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100])
     duty_cycle = 0
     maxDeltaT = 0.2
-    fan_on = False
+    fc.fanOn()
+    fan_on = True
     fc.heaterOn()
     heater_on = True
-    startTime = time.time() #Stilla upphafstima
     equil = False
+    #counter = -1
+    counter = 0
+    startTime = time.time() #Stilla upphafstima
 
-    counter = -1
-    while (counter < 11):
+    while (counter < 10):
+      if ((counter%2)==0):
+        fc.setFanSpeed(90)
+      else:
+        fc.setFanSpeed(10)
+
+      loopTime = time.time()
+      nuna = loopTime
+      while (not(equil and ((nuna-loopTime) > 20))):
+        temp = fc.measureTemp()
+        print('Hitastig: ', temp)
+        timi = fc.elapsedTime(startTime)
+        arr = np.append(arr, [[timi, temp, fan_on, duty_cycle, heater_on]], axis=0)
+        equil = fc.is_in_equilibrium(arr, 1, maxDeltaT)
+        nuna = time.time()
+        time.sleep(1)
+      
+      counter += 1
+    
+    """ while (counter < 11):
       if (counter == 0):
         fc.fanOn()
         fan_on = True
@@ -70,7 +91,7 @@ try:
         nuna = time.time()
         time.sleep(1)
 
-      counter += 1
+      counter += 1 """
 
     np.savetxt('nidurstodur.csv', arr, delimiter='; ', fmt='%.2f', header = head)
 
