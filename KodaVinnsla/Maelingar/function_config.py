@@ -140,12 +140,12 @@ def is_in_equilibrium(gogn, numCol, maxDeltaT):
   Tekur inn numpy array gogn og númer dálks numCol sem inniheldur hitastigsmælingar. Athugar hvort að hitamismunur á seinustu mælingu og mælingunni sem var 10 mælingum fyrr sé nógu lítið til að hægt sé að tala um að kerfið sé komið í jafnvægi. Skilar True ef jafnvægi og False ef ekki jafnvægi.
   """
   numRows = gogn.shape[0]
-  if numRows<13:
+  if numRows<20:
     return False
     # T1 = gogn[0][numCol]
   else:
     #print(numRows)
-    deltaT = np.average(gogn[(numRows-1):(numRows), numCol]) - np.average(gogn[(numRows-12):(numRows-3), numCol])
+    deltaT = np.average(gogn[(numRows-9):(numRows), numCol]) - np.average(gogn[(numRows-19):(numRows-10), numCol])
     #print("DeltaT: {:.3f}".format(deltaT))
     #print("maxDeltaT: {:.3f}".format(maxDeltaT))
     if (abs(deltaT) <= maxDeltaT):

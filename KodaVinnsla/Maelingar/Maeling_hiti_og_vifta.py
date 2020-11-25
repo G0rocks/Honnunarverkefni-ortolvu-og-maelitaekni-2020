@@ -43,31 +43,40 @@ try:
     cycles = np.array([0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100])
     duty_cycle = 0
     maxDeltaT = 0.2
-    fc.fanOn()
-    fan_on = True
+    
     fc.heaterOn()
     heater_on = True
     equil = False
+    temp = 0
+    while (temp < 25):
+      temp = fc.measureTemp()
+      time.sleep(4)
+
+
+    fc.fanOn()
+    fan_on = True
     #counter = -1
     counter = 0
     startTime = time.time() #Stilla upphafstima
 
-    while (counter < 10):
+    while (counter < 9):
+      print('umferð: ', counter)
       if ((counter%2)==0):
-        duty_cycle = 90
-      else:
         duty_cycle = 10
+      else:
+        duty_cycle = 90
 
       fc.setFanSpeed(duty_cycle)
       loopTime = time.time()
       nuna = loopTime
-      while (not(equil and ((nuna-loopTime) > 20))):
+      counter_2 = 1
+      while (not(equil and (counter_2 > 30))):
         temp = fc.measureTemp()
         print('Hitastig: ', temp)
         timi = fc.elapsedTime(startTime)
         arr = np.append(arr, [[timi, temp, fan_on, duty_cycle, heater_on]], axis=0)
         equil = fc.is_in_equilibrium(arr, 1, maxDeltaT)
-        nuna = time.time()
+        counter_2 += 1
         time.sleep(1)
       
       counter += 1
