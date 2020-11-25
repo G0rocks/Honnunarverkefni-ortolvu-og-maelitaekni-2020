@@ -34,6 +34,12 @@ import numpy as np                  # Documentation: https://numpy.org/doc/
 # Set project to active
 projectIsActive = True        # When this value becomes False the run is over and we end the threads, save and exit the program
 
+# PID config
+P_weight = 1 # Vægi P í PID stýringu
+I_weight = 0 # Vægi I í PID stýringu
+D_weight = 0 # Vægi D í PID stýringu
+K_mognun = 1 # Mögnun (e. amplification) PID stýringar
+
 # GPIO setup
 GPIO.setwarnings(False)       # Disable warnings about pin configuration being something other than the default
 GPIO.setmode(GPIO.BCM)        # Use Broadcom pinout
@@ -42,7 +48,6 @@ GPIO.setmode(GPIO.BCM)        # Use Broadcom pinout
 gogn = np.empty((0,7), float)   # Býr til gagnatöflu með 7 dálkum sem tekur bara við int gildum. Dálkar: [timi,hitastig,duty_cycle,tach_hall_rpm, rakastig, heater_is_on, oskgildi]
 maxDeltaT = 0.2     # Hámarks hitamismunur á seinustu mælingu og mælingunni sem var fyrir 10 mælingum til að við skilgreinum okkur við jafnvægi
 oskgildi = 20       # Óskgildið sem stýringin reynir að ná. Skilgreint við herbergishitastig og er sett upp síðar.
-
 
 # Fan config
 FAN_GPIO_PIN = 20       # BCM pin used to drive PWM fan
@@ -373,6 +378,28 @@ def oskgildi_setup():
     setFanSpeed(FAN_OFF)
     GPIO.cleanup() # resets all GPIO ports used by this function
 
+def geraGraf():
+  """
+  Gerum graf til þess að skoða niðurstöður og vistum það í skránna nstGraf.png
+  """
+  x = gogn[0:1] # geymir upplysingar um tima
+  heat = gogn[1:2]
+  duty = gogn[2:3]
+  rpm = gogn[3:4]
+  """
+
+  """
+  fig, axs = plt.subplots(3)
+  fig.suptitle('Niðurstöður Mælinga')
+  axs[0].plot(x, rpm)
+  axs[0].set_title("Viftuhraði")
+  axs[1].plot(x, duty)
+  axs[1].set_title("Duty cycle")
+  axs[2].plot(x, heat)
+  axs[2].set_title("Hiti")
+  plt.legend()
+  plt.savefig('nstGraf.png')
+
 ############################################################################################
 #################################### Threads ##########################################
 def oskgildi_thread_func():
@@ -436,11 +463,49 @@ def styring_thread_func():
   Þráður sem sér um að reyna að láta hitastigið sem neminn nemur fylgja óskgildinu.
   """
   global projectIsActive
-  global oskgildi
+  global gogn
+  global P_weight
+  global I_weight
+  global D_weight
+  global K_mognun
+  tempCol = 1
+  oskCol = 7
   while(projectIsActive):
     try:
       # PID stýring - Módel
-      pass
+      # Inntak
+      lastRow = gogn.shape[0]-1
+      oskgildi_local = gogn[lastRow][oskCol]
+      Temp = gogn[lastRow][tempCol]
+      error_signal = oskgildi_local-Temp
+
+      # P hluti
+      P_value = error_signal
+
+      # I hluti
+      I_value = 0
+
+      # D hluti
+      D_value = 0
+
+      # Úttak
+      control_signal = K_mognun*( P_value*P_weight+I_value*I_weight+D_value*D_weight )
+
+      # Stýring
+      if control_signal < 0:
+        fanOn()
+        heaterOff()
+        if control_signal < -1:
+          setFanSpeed(25)
+        elif control_signal < -2:
+          setFanSpeed(50)
+        elif control_signal < -3:
+          setFanSpeed(75)
+        elif control_signal < -4:
+          setFanSpeed(100)
+      elif control_signal > 0:
+        fanOff()
+        heaterOn()
 
     # trap a CTRL+C keyboard interrupt
     except KeyboardInterrupt:
@@ -509,26 +574,7 @@ except KeyboardInterrupt:
   setFanSpeed(FAN_OFF)
   GPIO.cleanup() # resets all GPIO ports used by this function
 
-"""
-Gerum graf til þess að skoða niðurstöður
-x = gogn[0:1] # geymir upplysingar um tima
-heat = gogn[1:2]
-duty = gogn[2:3]
-rpm = gogn[3:4]
-"""
-
-"""
-fig, axs = plt.subplots(3)
-fig.suptitle('Niðurstöður Mælinga')
-axs[0].plot(x, rpm)
-axs[0].set_title("Viftuhraði")
-axs[1].plot(x, duty)
-axs[1].set_title("Duty cycle")
-axs[2].plot(x, heat)
-axs[2].set_title("Hiti")
-plt.legend()
-plt.savefig('nstGraf.png')
- """
+geraGraf()
 
 oskgildi_thread.start()
 measure_thread.start()
