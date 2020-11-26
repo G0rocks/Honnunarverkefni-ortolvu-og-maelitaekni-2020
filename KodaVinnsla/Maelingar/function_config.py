@@ -126,7 +126,7 @@ def measureTemp():
   while keepGoing:
     try: 
       hitastig = dhtDevice.temperature
-      if hitastig is not None:
+      if (hitastig is not None and hitastig >0 ):
         keepGoing = False
     except:
       time.sleep(2)
