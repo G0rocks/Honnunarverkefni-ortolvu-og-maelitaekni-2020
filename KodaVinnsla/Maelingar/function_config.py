@@ -152,3 +152,93 @@ def is_in_equilibrium(gogn, numCol, maxDeltaT):
       return True
     else:
       return False
+
+def equilibrium_control(gogn, maxDeltaT):
+  """
+  Tekur inn numpy array gogn og númer dálks numCol sem inniheldur hitastigsmælingar. Athugar hvort að hitamismunur á seinustu mælingu og mælingunni sem var 10 mælingum fyrr sé nógu lítið til að hægt sé að tala um að kerfið sé komið í jafnvægi. Skilar True ef jafnvægi og False ef ekki jafnvægi.
+  """
+  numRows = gogn.shape[0]
+  oskgildi = gogn[(numrows-1), 5]
+  if numRows<20:
+    return False
+    # T1 = gogn[0][numCol]
+  else:
+    #print(numRows)
+    deltaT = np.average(gogn[(numRows-9):(numRows), numCol]) - oskgildi
+    #print("DeltaT: {:.3f}".format(deltaT))
+    #print("maxDeltaT: {:.3f}".format(maxDeltaT))
+    if (abs(deltaT) <= maxDeltaT):
+      return True
+    else:
+      return False
+
+
+def control(gogn):
+  """
+  tekur inn [tími, hitastig, fan_on, duty_cycle, heater_on, oskgildi, error, sum_error] og skilar control value
+  """
+  numRows = gogn.shape[0]
+
+  K = 10
+  T = 28
+  T_I = 100
+  T_D = 0.5
+
+  err = gogn[(numrRows-1), 6]
+  prev_err = gogn[(numRows-2), 6]
+  sum_err = gogn[(numRows-1), 7]
+
+  ctrl = K*(err + T/T_I * sum_err + T_D/T * (err-prev_err))
+  return(ctrl)
+
+
+def operate(gogn, control_signal):
+  """
+  Tekur inn control value og stýrir kerfinu eftir því
+  """
+  numRows = gogn.shape[0]
+  duty_cycle = gogn[(numRows-1), 3]
+  fan_on = gogn[(numRows-1), 2]
+  # Stýring
+  if control_signal > 0:
+    
+    #heaterOff()
+
+    duty_cycle += control_signal*2
+
+    if (duty_cycle > 100):
+      duty_cycle = 100
+    
+    if (not(fan_on)):
+      fanOn()
+      fan_on = True
+    setFanSpeed(duty_cycle)
+
+  elif control_signal < 0:
+    fanOff()
+    fan_on = False
+    #heaterOn()
+
+  return(fan_on)
+
+def oskgildi(slope_start, nowTime, equil_count):
+  """
+  Fall sem ákvarðar óskgildi
+  """
+  if (equil_count == 0):
+    osk = 23.3
+  elif (equil_count == 1):
+    osk = 50 
+  elif (equil_count > 1):
+    duration = nowTime - slope_start
+    if (duration < 30)
+      osk = 50 + duration * 1/3
+    elif ((30 <= duration) and (duration <60)):
+      osk = 60
+    elif ((60 <= duration) and (duration <90)):
+      osk = 60 - duration * 2/3
+    elif (duration > 90):
+      osk = 40
+  
+  return(osk)
+
