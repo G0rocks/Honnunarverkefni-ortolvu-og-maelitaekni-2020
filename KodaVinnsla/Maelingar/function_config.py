@@ -126,7 +126,7 @@ def measureTemp():
   while keepGoing:
     try: 
       hitastig = dhtDevice.temperature
-      if not (hitastig =! hitastig) and hitastig is not None:
+      if hitastig is not None:
         keepGoing = False
     except:
       time.sleep(2)
@@ -249,4 +249,3 @@ def oskgildi(slope_start, nowTime, equil_count):
       osk = 40
   
   return(osk)
-
