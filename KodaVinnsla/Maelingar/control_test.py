@@ -48,7 +48,7 @@ try:
     fan_on = False
     isActive = True
 
-    slope_start = 0.0
+    slope_start = 0
     control_signal = 0.0
 
 
@@ -63,7 +63,7 @@ try:
       temp = fc.measureTemp()
       timi = fc.elapsedTime(startTime)
       oskgildi = fc.oskgildi(slope_start, time.time(), equil_count)
-      print('Tími: ', timi, ' Hitastig: ', temp, ' Óskgildi: ', oskgildi)
+      print('Tími: {:.1f} s'.format(timi), ' Hitastig: {:.1f}°C'.format(temp), ' Óskgildi: {:.1f}°C'.format(oskgildi))
       deltaT = temp - oskgildi
       sum_error += deltaT
 
@@ -73,15 +73,19 @@ try:
 
       if (equil):
         equil_count += 1
+        print('equil_count: ', equil_count)
         equil = False
         if (equil_count == 2):
           slope_start = time.time()
+          print('slope_start: ', slope_start)
       # Reikna stýrimerki
       control_signal = fc.control(gogn)
       # Nota stýrimerki
-      fan_on = fc.operate(gogn, control_signal)
+      operator = fc.operate(gogn, control_signal)
+      duty_cycle = operator[1]
+      fan_on = operator[0]
       counter += 1
-      if ((time - slope_start) > 90):
+      if (((timi + startTime - slope_start) > 90) and (slope_start > 0)):
         isActive = False
       time.sleep(2)
 
@@ -90,9 +94,10 @@ try:
 
 # trap a CTRL+C keyboard interrupt
 except KeyboardInterrupt:
+    np.savetxt('control_test.csv', gogn, delimiter='; ', fmt='%.2f', header = head)
     fc.setFanSpeed(PWM_OFF)
-    fc.fanOff()
     fc.heaterOff()
+    fc.fanOff()
     GPIO.cleanup() # resets all GPIO ports used by this function
 
 
