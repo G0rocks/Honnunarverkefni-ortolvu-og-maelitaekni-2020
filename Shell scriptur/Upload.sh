@@ -1,3 +1,4 @@
 # Undirbúningur:
-# ssh-copy-id nemandi@raspi5.rhi.hi.is
-scp honnunarverkefni.py nemandi@raspi5.rhi.hi.is:
+# ssh-copy-id nemandi@raspi3.rhi.hi.is
+cd ..
+scp honnunarverkefni.py nemandi@raspi3.rhi.hi.is:
