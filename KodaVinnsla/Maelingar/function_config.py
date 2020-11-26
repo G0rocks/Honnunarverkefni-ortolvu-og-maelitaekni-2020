@@ -256,4 +256,3 @@ def oskgildi(slope_start, nowTime, equil_count):
       osk = 40
   
   return(osk)
-
