@@ -60,38 +60,36 @@ try:
     startTime = time.time()
 
     while (isActive):
-      try:
-        temp = fc.measureTemp()
-        timi = fc.elapsedTime(startTime)
-        oskgildi = fc.oskgildi(slope_start, time.time(), equil_count)
-        print('Tími: {:.1f} s'.format(timi), ' Hitastig: {:.1f}°C'.format(temp), ' Óskgildi: {:.1f}°C'.format(oskgildi))
-        deltaT = temp - oskgildi
-        sum_error += deltaT
+      # Mæla hitastig og tíma, reikna óskgildi og prenta út
+      temp = fc.measureTemp()
+      timi = fc.elapsedTime(startTime)
+      oskgildi = fc.oskgildi(slope_start, time.time(), equil_count)
+      print('Tími: {:.1f} s'.format(timi), ' Hitastig: {:.1f}°C'.format(temp), ' Óskgildi: {:.1f}°C'.format(oskgildi))
+      deltaT = temp - oskgildi
+      sum_error += deltaT
+      # Setja mælingar í gogn fylkið
+      gogn = np.append(gogn, [[timi, temp, fan_on, duty_cycle, heater_on, oskgildi, deltaT, sum_error, control_signal]], axis=0)
+      # Athuga hvort jafnvægi hafi náðst, nota jafnvægisskilyrði til að ákvarða hvernig á að breyta óskgildinu síðar
+      equil = fc.equilibrium_control(gogn, maxDeltaT)
 
-        gogn = np.append(gogn, [[timi, temp, fan_on, duty_cycle, heater_on, oskgildi, deltaT, sum_error, control_signal]], axis=0)
-        # Athuga hvort jafnvægi hafi náðst
-        equil = fc.equilibrium_control(gogn, maxDeltaT)
-
-        if (equil):
-          equil_count += 1
-          print('equil_count: ', equil_count)
-          equil = False
-          if (equil_count == 2):
-            slope_start = time.time()
-            print('slope_start: ', slope_start)
-        # Reikna stýrimerki
-        control_signal = fc.control(gogn)
-        # Nota stýrimerki
-        operator = fc.operate(gogn, control_signal)
-        duty_cycle = operator[1]
-        fan_on = operator[0]
-        counter += 1
-        if (((timi + startTime - slope_start) > 90) and (slope_start > 0)):
-          isActive = False
-        time.sleep(2)
-      except:
-        time.sleep(2)
-        continue
+      if (equil):
+        equil_count += 1
+        print('equil_count: ', equil_count)
+        equil = False
+        if (equil_count == 2):
+          slope_start = time.time()
+          print('slope_start: ', slope_start)
+      # Reikna stýrimerki
+      control_signal = fc.control(gogn)
+      # Nota stýrimerki
+      operator = fc.operate(gogn, control_signal)
+      duty_cycle = operator[1]
+      fan_on = operator[0]
+      counter += 1
+      # Enda keyrslu þegar lið 2 er lokið
+      if (((timi + startTime - slope_start) > 90) and (slope_start > 0)):
+        isActive = False
+      time.sleep(2)
 
     
     np.savetxt('control_test.csv', gogn, delimiter='; ', fmt='%.2f', header = head)
