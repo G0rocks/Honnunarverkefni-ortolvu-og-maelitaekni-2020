@@ -69,42 +69,51 @@ def setFanSpeed(PWM_duty_cycle):
   #GPIO.output(RELAY_FAN_GPIO_PIN, GPIO.LOW)
   if PWM_duty_cycle<0: PWM_duty_cycle=0
   elif PWM_duty_cycle>100: PWM_duty_cycle=100
-  fan.start(PWM_duty_cycle)    # set the speed according to the PWM duty cycle
-  print("Fan duty cycle: {:.1f}".format(PWM_duty_cycle))
- 
-  return()
+  try:
+    fan.start(PWM_duty_cycle)    # set the speed according to the PWM duty cycle
+    print("Fan duty cycle: {:.1f}".format(PWM_duty_cycle))
+  except:
+    print("error setting fan duty cycle")
 
 def fanOff():
   """
   Turns off the fan
   """
-  GPIO.output(RELAY_FAN_GPIO_PIN, GPIO.HIGH)
-  print("Fan off")
-  return()
+  try:
+    GPIO.output(RELAY_FAN_GPIO_PIN, GPIO.HIGH)
+    print("Fan off")
+  except:
+    print("error turning fan off")
 
 def fanOn():
   """
   Turns on the fan
   """
-  GPIO.output(RELAY_FAN_GPIO_PIN, GPIO.LOW)
-  print("Fan on")
-  return()
+  try:
+    GPIO.output(RELAY_FAN_GPIO_PIN, GPIO.LOW)
+    print("Fan on")
+  except:
+    print("error turning fan on")
 
 def heaterOff():
   """
   Turns off the heater
   """
-  GPIO.output(RELAY_HEATER_GPIO_PIN, GPIO.HIGH)
-  print("Heater off")
-  return()
+  try:
+    GPIO.output(RELAY_HEATER_GPIO_PIN, GPIO.HIGH)
+    print("Heater off")
+  except:
+    print("error turning heater off")
 
 def heaterOn():
   """
   Turns on the heater
   """
-  GPIO.output(RELAY_HEATER_GPIO_PIN, GPIO.LOW)
-  print("Heater on")
-  return()
+  try:
+    GPIO.output(RELAY_HEATER_GPIO_PIN, GPIO.LOW)
+    print("Heater on")
+  except:
+    print("Error turning heater on ")
 
 def measureTemp():
   """
@@ -114,17 +123,14 @@ def measureTemp():
   """
   keepGoing = True
   hitastig = -1
-  while (keepGoing):
+  while keepGoing:
     try: 
       hitastig = dhtDevice.temperature
-      keepGoing = False
-    except RuntimeError as error:
-        # Villur koma reglulega upp - getur verið erfitt að lesa gildi nemans, bara reyna aftur
-        print(error.args[0])
-        time.sleep(sensor_cache_clear_time)
-    except Exception as error:
-        dhtDevice.exit()
-        raise error
+      if not (hitastig =! hitastig) and hitastig is not None:
+        keepGoing = False
+    except:
+      time.sleep(2)
+      continue
   return (hitastig)
 
 def elapsedTime(UpphafsTimi):
