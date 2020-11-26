@@ -126,8 +126,10 @@ def measureTemp():
   while keepGoing:
     try: 
       hitastig = dhtDevice.temperature
-      if not (hitastig =! hitastig) and hitastig is not None:
+      if (hitastig > 0) and hitastig is not None:
         keepGoing = False
+      if (hitastig < 0):
+        keepGoing = True
     except:
       time.sleep(2)
       continue
@@ -185,16 +187,21 @@ def control(gogn):
   """
   numRows = gogn.shape[0]
 
-  K = 15
-  T = 28
-  T_I = 1000
-  T_D = 10
-
+  K = 30
+  
+  #T_I = 1000
+  T_D = 5
+  if (numRows < 2):
+    T = 1000
+    prev_err = 0
+  else:
+    T = gogn[(numRows-1), 0] - gogn[(numRows-2), 1]
+    prev_err = gogn[(numRows-2), 6]
+  
   err = gogn[(numRows-1), 6]
-  prev_err = gogn[(numRows-2), 6]
-  sum_err = gogn[(numRows-1), 7]
+  #sum_err = gogn[(numRows-1), 7]
 
-  ctrl = K*(err + 0 * T/T_I * sum_err + T_D/T * (err-prev_err))
+  ctrl = K*(err + T_D/T * (err-prev_err))
   return(ctrl)
 
 
@@ -222,6 +229,7 @@ def operate(gogn, control_signal):
     setFanSpeed(duty_cycle)
 
   elif (control_signal < 0):
+    duty_cycle = 0
     fanOff()
     fan_on = False
     #heaterOn()
@@ -233,7 +241,7 @@ def oskgildi(slope_start, nowTime, equil_count):
   Fall sem ákvarðar óskgildi
   """
   if (equil_count == 0):
-    osk = 25.5 #23.3
+    osk = 23.3
   elif (equil_count == 1):
     osk = 50 
   elif (equil_count > 1):
