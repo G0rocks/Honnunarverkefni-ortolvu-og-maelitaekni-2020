@@ -179,10 +179,10 @@ def control(gogn):
   """
   numRows = gogn.shape[0]
 
-  K = 40
+  K = 15
   T = 28
   T_I = 1000
-  T_D = 1
+  T_D = 10
 
   err = gogn[(numRows-1), 6]
   prev_err = gogn[(numRows-2), 6]
@@ -203,8 +203,7 @@ def operate(gogn, control_signal):
   if control_signal > 0:
     
     #heaterOff()
-    # ætti að vera duty_cycle += control_signal en þá þarf að breyta skalanum á control_signal
-    duty_cycle = control_signal
+    duty_cycle += control_signal
 
     if (duty_cycle > 100):
       duty_cycle = 100

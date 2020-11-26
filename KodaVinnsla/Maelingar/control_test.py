@@ -60,15 +60,16 @@ try:
     startTime = time.time()
 
     while (isActive):
+      # Mæla hitastig og tíma, reikna óskgildi og prenta út
       temp = fc.measureTemp()
       timi = fc.elapsedTime(startTime)
       oskgildi = fc.oskgildi(slope_start, time.time(), equil_count)
       print('Tími: {:.1f} s'.format(timi), ' Hitastig: {:.1f}°C'.format(temp), ' Óskgildi: {:.1f}°C'.format(oskgildi))
       deltaT = temp - oskgildi
       sum_error += deltaT
-
+      # Setja mælingar í gogn fylkið
       gogn = np.append(gogn, [[timi, temp, fan_on, duty_cycle, heater_on, oskgildi, deltaT, sum_error, control_signal]], axis=0)
-      # Athuga hvort jafnvægi hafi náðst
+      # Athuga hvort jafnvægi hafi náðst, nota jafnvægisskilyrði til að ákvarða hvernig á að breyta óskgildinu síðar
       equil = fc.equilibrium_control(gogn, maxDeltaT)
 
       if (equil):
@@ -85,6 +86,7 @@ try:
       duty_cycle = operator[1]
       fan_on = operator[0]
       counter += 1
+      # Enda keyrslu þegar lið 2 er lokið
       if (((timi + startTime - slope_start) > 90) and (slope_start > 0)):
         isActive = False
       time.sleep(2)
